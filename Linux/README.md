@@ -17,7 +17,7 @@ git clone https://github.com/shuichiro-endo/socks5.git
 
 2. build
 ```
-cd socks5/linux
+cd socks5/Linux
 make
 ```
 
@@ -125,7 +125,7 @@ Note: adjust forwarder timeout sec (default:300 sec)
     ```
     2. build
     ```
-    cd socks5/linux
+    cd socks5/Linux
     make
     ```
 
@@ -170,14 +170,14 @@ Note: adjust forwarder timeout sec (default:300 sec)
     ```
     4. build
     ```
-    cd socks5/linux
+    cd socks5/Linux
     make
     ```
 
 - client
-    1. copy server.crt file to socks5/linux directory
+    1. copy server.crt file to socks5/Linux directory
     ```
-    cp server.crt socks5/linux/server.crt
+    cp server.crt socks5/Linux/server.crt
     ```
     2. modify client.c file (if you change the certificate filename or directory path)
     ```
@@ -186,7 +186,7 @@ Note: adjust forwarder timeout sec (default:300 sec)
     ```
     3. build (if you change the certificate filename or directory path)
     ```
-    cd socks5/linux
+    cd socks5/Linux
     make
     ```
 
@@ -211,7 +211,7 @@ Note: adjust forwarder timeout sec (default:300 sec)
     ```
     4. build
     ```
-    cd socks5/linux
+    cd socks5/Linux
     make
     ```
 

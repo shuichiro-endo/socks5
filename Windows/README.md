@@ -24,24 +24,24 @@ set LIBPATH=%LIBPATH%;C:\Program Files\OpenSSL\lib
 4. build
     - server
     ```
-    cd socks5\windows\server
+    cd socks5\Windows\server
     compile.bat
     ```
     - client
     ```
-    cd socks5\windows\client
+    cd socks5\Windows\client
     compile.bat
     ```
 5. copy openssl dll files (libcrypto-3-x64.dll, libssl-3-x64.dll) to the client and server directory
     - server
     ```
-    cd socks5\windows\server
+    cd socks5\Windows\server
     copy "C:\Program Files\OpenSSL\bin\libcrypto-3-x64.dll" .
     copy "C:\Program Files\OpenSSL\bin\libssl-3-x64.dll" .
     ```
     - client
     ```
-    cd socks5\windows\client
+    cd socks5\Windows\client
     copy C:\Program Files\OpenSSL\bin\libcrypto-3-x64.dll .
     copy C:\Program Files\OpenSSL\bin\libssl-3-x64.dll .
     ```
@@ -156,7 +156,7 @@ server.exe -r -H 192.168.0.5 -P 1234 -t 0 -u 500000
     ```
     4. build
     ```
-    cd socks5\windows\server
+    cd socks5\Windows\server
     compile.bat
     ```
 
@@ -212,14 +212,14 @@ server.exe -r -H 192.168.0.5 -P 1234 -t 0 -u 500000
     ```
     7. build
     ```
-    cd socks5\windows\server
+    cd socks5\Windows\server
     compile.bat
     ```
 
 - client
-    1. copy server.crt file to socks5\windows\client directory
+    1. copy server.crt file to socks5\Windows\client directory
     ```
-    copy server.crt socks5\windows\client\server.crt
+    copy server.crt socks5\Windows\client\server.crt
     ```
     2. modify client.c file (if you change the certificate filename or directory path)
     ```
@@ -235,7 +235,7 @@ server.exe -r -H 192.168.0.5 -P 1234 -t 0 -u 500000
     ```
     5. build (if you change the certificate filename or directory path)
     ```
-    cd socks5\windows\client
+    cd socks5\Windows\client
     compile.bat
     ```
 
@@ -267,7 +267,7 @@ server.exe -r -H 192.168.0.5 -P 1234 -t 0 -u 500000
     ```
     6. build
     ```
-    cd socks5\windows\server
+    cd socks5\Windows\server
     compile.bat
     ```
 
