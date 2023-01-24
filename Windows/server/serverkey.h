@@ -1,5 +1,5 @@
 /*
- * Title:  socks5 server key header (Linux)
+ * Title:  socks5 server key header (Windows)
  * Author: Shuichiro Endo
  */
 

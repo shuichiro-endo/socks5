@@ -1,5 +1,5 @@
 /*
- * Title:  socks5 client (windows)
+ * Title:  socks5 client (Windows)
  * Author: Shuichiro Endo
  */
 

@@ -42,8 +42,8 @@ set LIBPATH=%LIBPATH%;C:\Program Files\OpenSSL\lib
     - client
     ```
     cd socks5\Windows\client
-    copy C:\Program Files\OpenSSL\bin\libcrypto-3-x64.dll .
-    copy C:\Program Files\OpenSSL\bin\libssl-3-x64.dll .
+    copy "C:\Program Files\OpenSSL\bin\libcrypto-3-x64.dll" .
+    copy "C:\Program Files\OpenSSL\bin\libssl-3-x64.dll" .
     ```
 
 ## Usage
