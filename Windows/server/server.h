@@ -3,9 +3,9 @@
  * Author: Shuichiro Endo
  */
 
-int recvData(int sock, void *buffer, int length);
+int recvData(SOCKET sock, void *buffer, int length);
 int recvDataTls(SSL *ssl ,void *buffer, int length);
-int sendData(int sock, void *buffer, int length);
+int sendData(SOCKET sock, void *buffer, int length);
 int sendDataTls(SSL *ssl, void *buffer, int length);
 int forwarder(SOCKET clientSock, SOCKET targetSock);
 int forwarderTls(SOCKET clientSock, SOCKET targetSock, SSL *clientSsl);
