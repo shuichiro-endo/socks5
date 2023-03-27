@@ -25,35 +25,31 @@ make
 - server
 ```
 Normal mode  : client -> server
-usage        : ./server -h listen_ip -p listen_port [-s (socks5 over tls)] [-t tv_sec(forwarder timeout sec)] [-u tv_usec(forwarder timeout microsec)]
+usage        : ./server -h listen_ip -p listen_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]
 example      : ./server -h 0.0.0.0 -p 9050
              : ./server -h 0.0.0.0 -p 9050 -s
-             : ./server -h 0.0.0.0 -p 9050 -s -t 1
-             : ./server -h 0.0.0.0 -p 9050 -s -t 0 -u 500000
+             : ./server -h 0.0.0.0 -p 9050 -s -A 3 -B 0 -C 3 -D 0
 or
 Reverse mode : client <- server
-usage        : ./server -r -H socks5client_ip -P socks5client_port [-s (socks5 over tls)] [-t tv_sec(forwarder timeout sec)] [-u tv_usec(forwarder timeout microsec)]
+usage        : ./server -r -H socks5client_ip -P socks5client_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]
 example      : ./server -r -H 192.168.0.5 -P 1234
              : ./server -r -H 192.168.0.5 -P 1234 -s
-             : ./server -r -H 192.168.0.5 -P 1234 -s -t 1
-             : ./server -r -H 192.168.0.5 -P 1234 -s -t 0 -u 500000
+             : ./server -r -H 192.168.0.5 -P 1234 -s -A 3 -B 0 -C 3 -D 0
 ```
 
 - client
 ```
 Normal mode  : client -> server
-usage        : ./client -h socks5_listen_ip -p socks5_listen_port -H socks5server_ip -P socks5server_port [-s (socks5 over tls)] [-t tv_sec(forwarder timeout sec) [-u tv_usec(forwarder timeout microsec)]
+usage        : ./client -h socks5_listen_ip -p socks5_listen_port -H socks5server_ip -P socks5server_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]
 example      : ./client -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050
              : ./client -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050 -s
-             : ./client -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050 -s -t 1
-             : ./client -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050 -s -t 0 -u 500000
+             : ./client -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050 -s -A 3 -B 0 -C 3 -D 0
 or
 Reverse mode : client <- server
-usage        : ./client -r -h socks5_listen_ip -p socks5_listen_port -H socks5server_listen_ip -P socks5server_listen_port [-s (socks5 over tls)] [-t tv_sec(forwarder timeout sec) [-u tv_usec(forwarder timeout microsec)]
+usage        : ./client -r -h socks5_listen_ip -p socks5_listen_port -H socks5server_listen_ip -P socks5server_listen_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]
 example      : ./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234
              : ./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s
-             : ./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s -t 1
-             : ./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s -t 0 -u 500000
+             : ./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s -A 3 -B 0 -C 3 -D 0
 ```
 
 ### Normal mode (client -> server)
@@ -83,35 +79,23 @@ curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
 1. run my client
 ```
 # Socks5
-./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -t 1
+./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234
 
 # Socks5 over TLS
-./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s -t 1
+./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s
 ```
 2. run my server
 ```
 # Socks5
-./server -r -H 192.168.0.5 -P 1234 -t 1
+./server -r -H 192.168.0.5 -P 1234
 
 # Socks5 over TLS
-./server -r -H 192.168.0.5 -P 1234 -s -t 1
+./server -r -H 192.168.0.5 -P 1234 -s
 ```
 3. connect to my client from other clients(browser, proxychains, etc.)
 ```
 proxychains4 curl -v https://www.google.com
 curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
-```
-
-Note: adjust forwarder timeout sec (default:300 sec)
-- forwarder timeout: 2 sec
-```
-./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -t 2
-./server -r -H 192.168.0.5 -P 1234 -t 2
-```
-- forwarder timeout: 0.5 sec
-```
-./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -t 0 -u 500000
-./server -r -H 192.168.0.5 -P 1234 -t 0 -u 500000
 ```
 
 ## Notes
