@@ -39,7 +39,7 @@ char *socks5Server2Ip = NULL;
 char *socks5Server2Port = NULL;
 int reverseFlag = 0;
 int tlsFlag = 0;
-long tv_sec = 300;
+long tv_sec = 3;
 long tv_usec = 0;
 
 char serverCertificateFilename[256] = "server.crt";	// server certificate file name
@@ -336,7 +336,7 @@ int worker(void *ptr)
 		err = connect(targetSock, (sockaddr *)&targetAddr, sizeof(targetAddr));
 		if(err != 0){
 #ifdef _DEBUG
-			printf("[E] Connect failed. errno:%d", WSAGetLastError());
+			printf("[E] Connect failed. errno:%d\n", WSAGetLastError());
 #endif
 			return -1;
 		}

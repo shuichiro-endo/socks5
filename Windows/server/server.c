@@ -38,7 +38,7 @@ char *socks5ClientIp = NULL;
 char *socks5ClientPort = NULL;
 int reverseFlag = 0;
 int tlsFlag = 0;
-long tv_sec = 300;
+long tv_sec = 3;
 long tv_usec = 0;
 
 static char authenticationMethod = 0x0;	// 0x0:No Authentication Required	0x2:Username/Password Authentication
@@ -338,7 +338,7 @@ int sendSocksResponseIpv6(SOCKET clientSock, char ver, char req, char rsv, char 
 	memset(pSocksResponseIpv6->bndAddr, 0, 16);	// BND.ADDR
 	memset(pSocksResponseIpv6->bndPort, 0, 2);		// BND.PORT
 	
-	sen = send(clientSock, (char *)pSocksResponseIpv6, sizeof(SOCKS_RESPONSE_IPV6), 0);
+	sen = sendData(clientSock, (char *)pSocksResponseIpv6, sizeof(SOCKS_RESPONSE_IPV6));
 	
 	free(pSocksResponseIpv6);
 
@@ -830,7 +830,7 @@ int worker(void *ptr)
 				hints.ai_family = AF_INET6;	// IPv6
 				if(getaddrinfo(domainname, NULL, &hints, &pTargetHost) != 0){
 #ifdef _DEBUG
-					printf("[E] Cannnot resolv the domain name:%s.\n", (char *)domainname);
+					printf("[E] Cannot resolv the domain name:%s.\n", (char *)domainname);
 #endif
 					
 					// socks SOCKS_RESPONSE send error
@@ -853,7 +853,7 @@ int worker(void *ptr)
 			hints.ai_family = AF_INET6;	// IPv6
 			if(getaddrinfo(domainname, NULL, &hints, &pTargetHost) != 0){
 #ifdef _DEBUG
-				printf("[E] Cannnot resolv the domain name:%s.\n", (char *)domainname);
+				printf("[E] Cannot resolv the domain name:%s.\n", (char *)domainname);
 #endif
 				
 				// socks SOCKS_RESPONSE send error
@@ -954,7 +954,7 @@ int worker(void *ptr)
 			
 			if((err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr))) < 0){
 #ifdef _DEBUG
-				printf("[E] Cannnot connect. errno:%d\n", err);
+				printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 				
 				if(tlsFlag == 0){
@@ -1016,7 +1016,7 @@ int worker(void *ptr)
 			
 			if((err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr))) < 0){
 #ifdef _DEBUG
-				printf("[E] Cannnot connect. errno:%d\n", err);
+				printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 				
 				if(tlsFlag == 0){
@@ -1083,7 +1083,7 @@ int worker(void *ptr)
 				
 				if((err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr))) < 0){
 #ifdef _DEBUG
-					printf("[E] Cannnot connect. errno:%d\n", err);
+					printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 					
 					if(tlsFlag == 0){
@@ -1143,7 +1143,7 @@ int worker(void *ptr)
 			
 				if((err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr))) < 0){
 #ifdef _DEBUG
-					printf("[E] Cannnot connect. errno:%d\n", err);
+					printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 					
 					if(tlsFlag == 0){
@@ -1210,7 +1210,7 @@ int worker(void *ptr)
 			
 				if((err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6))) < 0){
 #ifdef _DEBUG
-					printf("[E] Cannnot connect. errno:%d\n", err);
+					printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 					
 					if(tlsFlag == 0){
@@ -1271,7 +1271,7 @@ int worker(void *ptr)
 								
 				if((err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6))) < 0){
 #ifdef _DEBUG
-					printf("[E] Cannnot connect. errno:%d\n", err);
+					printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 					
 					if(tlsFlag == 0){
@@ -1358,7 +1358,7 @@ int worker(void *ptr)
 			
 			if((err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6))) < 0){
 #ifdef _DEBUG
-				printf("[E] Cannnot connect. errno:%d\n", err);
+				printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 				
 				if(tlsFlag == 0){
@@ -1419,7 +1419,7 @@ int worker(void *ptr)
 		
 			if((err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6))) < 0){
 #ifdef _DEBUG
-				printf("[E] Cannnot connect. errno:%d\n", err);
+				printf("[E] Cannot connect. errno:%d\n", err);
 #endif
 				
 				if(tlsFlag == 0){
@@ -1777,8 +1777,11 @@ int main(int argc, char **argv)
 #ifdef _DEBUG
 			printf("[I] Connected from %s.\n", inet_ntoa(clientAddr.sin_addr));
 #endif
-					
-			_beginthread(workerThread, 0, (void *)&clientSock);
+			
+			param.clientSock = clientSock;
+			param.clientSsl = clientSsl;
+			
+			_beginthread(workerThread, 0, &param);
 		}
 
 		closesocket(serverSock);
@@ -1819,7 +1822,7 @@ int main(int argc, char **argv)
 		
 		if((err = connect(clientSock, (sockaddr *)&clientAddr, sizeof(clientAddr))) < 0){
 #ifdef _DEBUG
-			printf("[E] Connect failed. errno:%d", err);
+			printf("[E] Connect failed. errno:%d\n", err);
 #endif
 			closesocket(clientSock);
 			WSACleanup();

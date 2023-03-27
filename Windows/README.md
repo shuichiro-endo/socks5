@@ -126,7 +126,7 @@ proxychains4 curl -v https://www.google.com
 curl -v -x socks5h://192.168.0.5:9050 https://www.google.com
 ```
 
-Note: adjust forwarder timeout sec (default:300 sec)
+Note: adjust forwarder timeout sec (default:3 sec)
 - forwarder timeout: 2 sec
 ```
 client.exe -r -h 192.168.0.5 -p 9050 -H 192.168.0.5 -P 1234 -t 2
