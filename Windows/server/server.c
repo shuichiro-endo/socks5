@@ -765,7 +765,7 @@ int worker(void *ptr)
 	}
 	
 	char cmd = pSocksRequest->cmd;
-	if(cmd != 0x1 && cmd != 0x3){
+	if(cmd != 0x1){	// CONNECT only
 #ifdef _DEBUG
 		printf("[E] Socks request cmd(%d) error.\n", cmd);
 		printf("[E] Not implemented.\n");
@@ -1011,45 +1011,22 @@ int worker(void *ptr)
 		}else if(cmd == 0x3){	// UDP ASSOCIATE
 #ifdef _DEBUG
 			printf("[I] SOCKS_RESPONSE cmd:UDP ASSOCIATE.\n");
-#endif
-			targetSock = socket(AF_INET, SOCK_DGRAM, 0);
-			
-			if((err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr))) < 0){
-#ifdef _DEBUG
-				printf("[E] Cannot connect. errno:%d\n", err);
-#endif
-				
-				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1);
-				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x5, 0x0, 0x1);
-				}
-#ifdef _DEBUG
-				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif
-				
-				closesocket(targetSock);
-				if(reverseFlag == 0){	// Nomal mode
-					if(tlsFlag == 1){	// tls
-						finiSsl(&sslParam);
-					}
-					closesocket(clientSock);
-				}
-				return -1;
-			}
-
-#ifdef _DEBUG
-			printf("[I] Connected. ip:%s port:%d\n", inet_ntoa(targetAddr.sin_addr), ntohs(targetAddr.sin_port));
+			printf("[E] Not implemented.\n");
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x0, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x0, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
 			}
-#ifdef _DEBUG
-			printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif
+			
+			if(reverseFlag == 0){	// Nomal mode
+				if(tlsFlag == 1){	// tls
+					finiSsl(&sslParam);
+				}
+				closesocket(clientSock);
+			}
+			return -1;
 		}else{
 #ifdef _DEBUG
 			printf("[E] Not implemented.\n");
@@ -1138,45 +1115,22 @@ int worker(void *ptr)
 			}else if(cmd == 0x3){	// UDP ASSOCIATE
 #ifdef _DEBUG
 				printf("[I] SOCKS_RESPONSE cmd:UDP ASSOCIATE.\n");
-#endif
-				targetSock = socket(AF_INET, SOCK_DGRAM, 0);
-			
-				if((err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr))) < 0){
-#ifdef _DEBUG
-					printf("[E] Cannot connect. errno:%d\n", err);
-#endif
-					
-					if(tlsFlag == 0){
-						sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1);
-					}else{
-						sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x5, 0x0, 0x1);
-					}
-#ifdef _DEBUG
-					printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif
-
-					closesocket(targetSock);
-					if(reverseFlag == 0){	// Nomal mode
-						if(tlsFlag == 1){	// tls
-							finiSsl(&sslParam);
-						}
-						closesocket(clientSock);
-					}
-					return -1;
-				}
-				
-#ifdef _DEBUG
-				printf("[I] Connected. ip:%s port:%d\n", inet_ntoa(targetAddr.sin_addr), ntohs(targetAddr.sin_port));
+				printf("[E] Not implemented.\n");
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x0, 0x0, 0x1);
+					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
 				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x0, 0x0, 0x1);
+					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
 				}
-#ifdef _DEBUG
-				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif			
+				
+				if(reverseFlag == 0){	// Nomal mode
+					if(tlsFlag == 1){	// tls
+						finiSsl(&sslParam);
+					}
+					closesocket(clientSock);
+				}
+				return -1;
 			}else{
 #ifdef _DEBUG
 				printf("[E] Not implemented.\n");
@@ -1266,46 +1220,22 @@ int worker(void *ptr)
 			}else if(cmd == 0x3){	// UDP ASSOCIATE
 #ifdef _DEBUG
 				printf("[I] SOCKS_RESPONSE cmd:UDP ASSOCIATE.\n");
-#endif
-				targetSock = socket(AF_INET6, SOCK_DGRAM, 0);				
-								
-				if((err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6))) < 0){
-#ifdef _DEBUG
-					printf("[E] Cannot connect. errno:%d\n", err);
-#endif
-					
-					if(tlsFlag == 0){
-						sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4);
-					}else{
-						sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x5, 0x0, 0x4);
-					}
-#ifdef _DEBUG
-					printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif
-
-					closesocket(targetSock);
-					if(reverseFlag == 0){	// Nomal mode
-						if(tlsFlag == 1){	// tls
-							finiSsl(&sslParam);
-						}
-						closesocket(clientSock);
-					}
-					
-					return -1;
-				}
-
-#ifdef _DEBUG
-				printf("[I] Connected. ip:%s port:%d\n", pTargetAddr6String, ntohs(targetAddr6.sin6_port));
+				printf("[E] Not implemented.\n");
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x0, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x0, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
 				}
-#ifdef _DEBUG
-				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif
+				
+				if(reverseFlag == 0){	// Nomal mode
+					if(tlsFlag == 1){	// tls
+						finiSsl(&sslParam);
+					}
+					closesocket(clientSock);
+				}
+				return -1;
 			}else{
 #ifdef _DEBUG
 				printf("[E] Not implemented.\n");
@@ -1414,45 +1344,22 @@ int worker(void *ptr)
 		}else if(cmd == 0x3){	// UDP ASSOCIATE
 #ifdef _DEBUG
 			printf("[I] SOCKS_RESPONSE cmd:UDP ASSOCIATE.\n");
-#endif
-			targetSock = socket(AF_INET6, SOCK_DGRAM, 0);
-		
-			if((err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6))) < 0){
-#ifdef _DEBUG
-				printf("[E] Cannot connect. errno:%d\n", err);
-#endif
-				
-				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4);
-				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x5, 0x0, 0x4);
-				}
-#ifdef _DEBUG
-				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif
-
-				closesocket(targetSock);
-				if(reverseFlag == 0){	// Nomal mode
-					if(tlsFlag == 1){	// tls
-						finiSsl(&sslParam);
-					}
-					closesocket(clientSock);
-				}
-				return -1;
-			}
-
-#ifdef _DEBUG
-			printf("[I] Connected. ip:%s port:%d\n", pTargetAddr6String, ntohs(targetAddr6.sin6_port));
+			printf("[E] Not implemented.\n");
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x0, 0x0, 0x4);
+				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
 			}else{
-				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x0, 0x0, 0x4);
+				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
 			}
-#ifdef _DEBUG
-			printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
-#endif			
+			
+			if(reverseFlag == 0){	// Nomal mode
+				if(tlsFlag == 1){	// tls
+					finiSsl(&sslParam);
+				}
+				closesocket(clientSock);
+			}
+			return -1;
 		}else{
 #ifdef _DEBUG
 			printf("[E] Not implemented.\n");
