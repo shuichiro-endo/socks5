@@ -755,7 +755,7 @@ int worker(void *ptr)
 			}
 			
 #ifdef _DEBUG
-			printf("[I] Send selection response:%d bytes.\n", sen);
+			printf("[I] Send username password authentication response:%d bytes.\n", sen);
 #endif
 			
 			free(pUsernamePasswordAuthenticationResponse);
