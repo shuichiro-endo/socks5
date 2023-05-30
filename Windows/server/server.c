@@ -406,7 +406,9 @@ int worker(void *ptr)
 	SSLPARAM sslParam;
 	sslParam.clientCtx = NULL;
 	sslParam.clientSsl = NULL;
-
+	
+	free(ptr);
+	
 	
 	if(reverseFlag == 0 && tlsFlag == 1){	// Normal mode and tls
 		// Initialize
@@ -1611,7 +1613,7 @@ int main(int argc, char **argv)
 	EVP_PKEY *sprivatekey = NULL;
 	X509 *scert = NULL;
 
-	PARAM param;
+	pPARAM pParam;
 
 	SSLPARAM sslParam;
 	sslParam.clientCtx = NULL;
@@ -1684,11 +1686,11 @@ int main(int argc, char **argv)
 #ifdef _DEBUG
 			printf("[I] Connected from %s.\n", inet_ntoa(clientAddr.sin_addr));
 #endif
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->clientSock = clientSock;
+			pParam->clientSsl = clientSsl;
 			
-			param.clientSock = clientSock;
-			param.clientSsl = clientSsl;
-			
-			_beginthread(workerThread, 0, &param);
+			_beginthread(workerThread, 0, pParam);
 		}
 
 		closesocket(serverSock);
@@ -1877,12 +1879,13 @@ int main(int argc, char **argv)
 			printf("[I] Succeed Socks5 over TLS connection. (SSL_accept)\n");
 #endif
 		}
-		
-		param.clientSock = clientSock;
-		param.clientSsl = clientSsl;
 					
 		while(1){
-			err = worker(&param);
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->clientSock = clientSock;
+			pParam->clientSsl = clientSsl;
+			
+			err = worker(pParam);
 			if(err == -2){
 				break;
 			}

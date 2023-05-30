@@ -393,6 +393,9 @@ int worker(void *ptr)
 	char buffer[BUFSIZ+1];
 	bzero(buffer, BUFSIZ+1);
 	
+	free(ptr);
+	
+	
 	if(reverseFlag == 0){	// Nomal mode
 		targetAddr.sin_family = AF_INET;
 		targetAddr.sin_addr.s_addr = inet_addr(socks5TargetIp);
@@ -864,7 +867,7 @@ int main(int argc, char **argv)
 	int targetAddrLen = sizeof(targetAddr);
 	int clientAddrLen = sizeof(clientAddr);
 
-	PARAM param;
+	pPARAM pParam;
 	
 	SSL_CTX *targetCtx = NULL;
 	SSL *targetSsl = NULL;
@@ -926,16 +929,17 @@ int main(int argc, char **argv)
 			fcntl(clientSock, F_SETFL, flags);
 			
 			pthread_t thread;
-
-			param.targetSock = targetSock;
-			param.clientSock = clientSock;
-			param.targetSsl = NULL;
-			param.tv_sec = tv_sec;
-			param.tv_usec = tv_usec;
-			param.forwarder_tv_sec = forwarder_tv_sec;
-			param.forwarder_tv_usec = forwarder_tv_usec;
 			
-			if(pthread_create(&thread, NULL, (void *)worker, &param))
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->targetSock = targetSock;
+			pParam->clientSock = clientSock;
+			pParam->targetSsl = NULL;
+			pParam->tv_sec = tv_sec;
+			pParam->tv_usec = tv_usec;
+			pParam->forwarder_tv_sec = forwarder_tv_sec;
+			pParam->forwarder_tv_usec = forwarder_tv_usec;
+			
+			if(pthread_create(&thread, NULL, (void *)worker, pParam))
 			{
 #ifdef _DEBUG
 				printf("[E] pthread_create failed.\n");
@@ -982,7 +986,7 @@ int main(int argc, char **argv)
 		}
 	
 		// listen
-		listen(server2Sock, 0);
+		listen(server2Sock, 5);
 #ifdef _DEBUG
 		printf("[I] Listenning port %d on %s.\n", ntohs(server2Addr.sin_port), inet_ntoa(server2Addr.sin_addr));
 #endif
@@ -1112,7 +1116,7 @@ int main(int argc, char **argv)
 		}
 		
 		// listen
-		listen(serverSock, 0);
+		listen(serverSock, 5);
 #ifdef _DEBUG
 		printf("[I] Listenning port %d on %s.\n", ntohs(serverAddr.sin_port), inet_ntoa(serverAddr.sin_addr));
 #endif
@@ -1129,15 +1133,16 @@ int main(int argc, char **argv)
 			
 			pthread_t thread;
 			
-			param.targetSock = targetSock;
-			param.clientSock = clientSock;
-			param.targetSsl = targetSsl;
-			param.tv_sec = tv_sec;
-			param.tv_usec = tv_usec;
-			param.forwarder_tv_sec = forwarder_tv_sec;
-			param.forwarder_tv_usec = forwarder_tv_usec;
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->targetSock = targetSock;
+			pParam->clientSock = clientSock;
+			pParam->targetSsl = targetSsl;
+			pParam->tv_sec = tv_sec;
+			pParam->tv_usec = tv_usec;
+			pParam->forwarder_tv_sec = forwarder_tv_sec;
+			pParam->forwarder_tv_usec = forwarder_tv_usec;
 			
-			err = worker(&param);
+			err = worker(pParam);
 			if(err == -2){
 				break;
 			}

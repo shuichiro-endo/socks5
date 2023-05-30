@@ -319,6 +319,9 @@ int worker(void *ptr)
 	char buffer[BUFSIZ+1];
 	ZeroMemory(buffer, BUFSIZ+1);
 	
+	free(ptr);
+	
+	
 	if(reverseFlag == 0){	// Nomal mode
 
 		targetAddr.sin_family = AF_INET;
@@ -868,7 +871,7 @@ int main(int argc, char** argv)
 	int targetAddrLen = sizeof(targetAddr);
 	u_long iMode = 1;	// non-blocking mode
 
-	PARAM param;
+	pPARAM pParam;
 	
 	SSL_CTX *targetCtx = NULL;
 	SSL *targetSsl = NULL;
@@ -948,11 +951,12 @@ int main(int argc, char** argv)
 			printf("[I] Connected from %s.\n", inet_ntoa(clientAddr.sin_addr));
 #endif
 			
-			param.targetSock = targetSock;
-			param.clientSock = clientSock;
-			param.targetSsl = NULL;
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->targetSock = targetSock;
+			pParam->clientSock = clientSock;
+			pParam->targetSsl = NULL;
 			
-			_beginthread(workerThread, 0, &param);
+			_beginthread(workerThread, 0, pParam);
 		}
 		
 		closesocket(serverSock);
@@ -991,7 +995,7 @@ int main(int argc, char** argv)
 		}
 	
 		// listen
-		err = listen(server2Sock, 0);
+		err = listen(server2Sock, 5);
 		if(err == SOCKET_ERROR){
 #ifdef _DEBUG
 			printf("[E] listen error:%d.\n", WSAGetLastError());
@@ -1135,7 +1139,7 @@ int main(int argc, char** argv)
 		}
 		
 		// listen
-		err = listen(serverSock, 0);
+		err = listen(serverSock, 5);
 		if(err == SOCKET_ERROR){
 #ifdef _DEBUG
 			printf("[E] listen error:%d.\n", WSAGetLastError());
@@ -1159,11 +1163,12 @@ int main(int argc, char** argv)
 			printf("[I] Connected from %s.\n", inet_ntoa(clientAddr.sin_addr));
 #endif
 			
-			param.targetSock = targetSock;
-			param.clientSock = clientSock;
-			param.targetSsl = targetSsl;
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->targetSock = targetSock;
+			pParam->clientSock = clientSock;
+			pParam->targetSsl = targetSsl;
 			
-			err = worker(&param);
+			err = worker(pParam);
 			if(err == -2){
 				break;
 			}

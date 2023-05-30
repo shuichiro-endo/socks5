@@ -475,7 +475,10 @@ int worker(void *ptr)
 	SSLPARAM sslParam;
 	sslParam.clientCtx = NULL;
 	sslParam.clientSsl = NULL;
-
+	
+	free(ptr);
+	
+	
 	if(reverseFlag == 0 && tlsFlag == 1){	// Normal mode and tls
 		// Initialize
 		OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, NULL);
@@ -1630,8 +1633,8 @@ int main(int argc, char **argv)
 	EVP_PKEY *sprivatekey = NULL;
 	X509 *scert = NULL;
 
-	PARAM param;
-
+	pPARAM pParam;
+	
 	SSLPARAM sslParam;
 	sslParam.clientCtx = NULL;
 	sslParam.clientSsl = NULL;
@@ -1687,14 +1690,15 @@ int main(int argc, char **argv)
 			
 			pthread_t thread;
 			
-			param.clientSock = clientSock;
-			param.clientSsl = NULL;
-			param.tv_sec = tv_sec;
-			param.tv_usec = tv_usec;
-			param.forwarder_tv_sec = forwarder_tv_sec;
-			param.forwarder_tv_usec = forwarder_tv_usec;
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->clientSock = clientSock;
+			pParam->clientSsl = NULL;
+			pParam->tv_sec = tv_sec;
+			pParam->tv_usec = tv_usec;
+			pParam->forwarder_tv_sec = forwarder_tv_sec;
+			pParam->forwarder_tv_usec = forwarder_tv_usec;
 			
-			if(pthread_create(&thread, NULL, (void *)worker, &param)){
+			if(pthread_create(&thread, NULL, (void *)worker, pParam)){
 #ifdef _DEBUG
 				printf("[E] pthread_create failed.\n");
 #endif
@@ -1876,16 +1880,17 @@ int main(int argc, char **argv)
 			printf("[I] Succeed Socks5 over TLS connection. (SSL_accept)\n");
 #endif
 		}
-
-		param.clientSock = clientSock;
-		param.clientSsl = clientSsl;
-		param.tv_sec = tv_sec;
-		param.tv_usec = tv_usec;
-		param.forwarder_tv_sec = forwarder_tv_sec;
-		param.forwarder_tv_usec = forwarder_tv_usec;
 		
 		while(1){
-			err = worker(&param);
+			pParam = (pPARAM)calloc(1, sizeof(PARAM));
+			pParam->clientSock = clientSock;
+			pParam->clientSsl = clientSsl;
+			pParam->tv_sec = tv_sec;
+			pParam->tv_usec = tv_usec;
+			pParam->forwarder_tv_sec = forwarder_tv_sec;
+			pParam->forwarder_tv_usec = forwarder_tv_usec;
+			
+			err = worker(pParam);
 			if(err == -2){
 				break;
 			}
