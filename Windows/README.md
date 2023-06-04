@@ -5,9 +5,13 @@ socks5 server and client (Windows)
 ## Installation
 ### Install dependencies
 - openssl
-1. download [openssl 3.0 version](https://www.openssl.org/source/)
-2. extract openssl-3.0.x.tar.gz
-3. install openssl. see openssl-3.0.x\NOTES-WINDOWS.md(Quick start)
+    1. download [openssl 3.0 version](https://www.openssl.org/source/)
+    2. extract openssl-3.0.x.tar.gz
+    3. install openssl. see openssl-3.0.x\NOTES-WINDOWS.md(Quick start)
+- visual studio community (Desktop development with C++)
+    1. install Desktop development with C++
+
+Note: It takes a lot of time to install these.
 
 ### Install
 1. download files
