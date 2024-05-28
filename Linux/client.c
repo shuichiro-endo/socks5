@@ -378,9 +378,32 @@ int worker(void *ptr)
 	long forwarder_tv_usec = pParam->forwarder_tv_usec;
 	
 	struct sockaddr_in targetAddr;
+	struct sockaddr_in *tmpIpv4;
+	struct sockaddr_in6 targetAddr6;
+	struct sockaddr_in6 *tmpIpv6;
+	struct addrinfo hints;
+	struct addrinfo *targetHost;
+
+	bzero(&targetAddr, sizeof(struct sockaddr_in));
+	bzero(&targetAddr6, sizeof(struct sockaddr_in6));
+	bzero(&hints, sizeof(struct addrinfo));
+
+	char *targetDomainname = socks5TargetIp;
+	u_short targetDomainnameLength = 0;
+	if(targetDomainname != NULL){
+		targetDomainnameLength = strlen(targetDomainname);
+	}
+	char *targetPortNumber = socks5TargetPort;
+	char targetAddr6String[INET6_ADDRSTRLEN+1] = {0};
+	char *targetAddr6StringPointer = targetAddr6String;
+
+	char *colon = NULL;
+	int family = 0;
 	int flags;
 	int ret = 0;
 	int err = 0;
+	int targetAddrLen = sizeof(targetAddr);
+	int targetAddr6Len = sizeof(targetAddr6);
 	
 	SSL_CTX *targetCtx = NULL;
 	SSL *targetSsl = pParam->targetSsl;
@@ -397,19 +420,109 @@ int worker(void *ptr)
 	
 	
 	if(reverseFlag == 0){	// Nomal mode
-		targetAddr.sin_family = AF_INET;
-		targetAddr.sin_addr.s_addr = inet_addr(socks5TargetIp);
-		targetAddr.sin_port = htons(atoi(socks5TargetPort));
-
-		targetSock = socket(AF_INET, SOCK_STREAM, 0);
-				
-		flags = fcntl(targetSock, F_GETFL, 0);
-		flags &= ~O_NONBLOCK;
-		fcntl(targetSock, F_SETFL, flags);
-					
-		if(err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr)) < 0){
 #ifdef _DEBUG
-			printf("[E] Connect failed. errno:%d", err);
+		printf("[I] Target domainname:%s, Length:%d\n", targetDomainname, targetDomainnameLength);
+#endif
+		colon = strstr(targetDomainname, ":");	// check ipv6 address
+		if(colon == NULL){	// ipv4 address or domainname
+			hints.ai_family = AF_INET;	// IPv4
+			if(getaddrinfo(targetDomainname, targetPortNumber, &hints, &targetHost) != 0){
+				hints.ai_family = AF_INET6;	// IPv6
+				if(getaddrinfo(targetDomainname, targetPortNumber, &hints, &targetHost) != 0){
+#ifdef _DEBUG
+					printf("[E] Cannot resolv the domain name:%s\n", targetDomainname);
+#endif
+					return -1;
+				}
+			}
+		}else{	// ipv6 address
+			hints.ai_family = AF_INET6;	// IPv6
+			if(getaddrinfo(targetDomainname, targetPortNumber, &hints, &targetHost) != 0){
+#ifdef _DEBUG
+				printf("[E] Cannot resolv the domain name:%s\n", targetDomainname);
+#endif
+				return -1;
+			}
+		}
+
+		if(targetHost->ai_family == AF_INET){
+			family = AF_INET;
+			targetAddr.sin_family = AF_INET;
+			tmpIpv4 = (struct sockaddr_in *)targetHost->ai_addr;
+			memcpy(&targetAddr.sin_addr, &tmpIpv4->sin_addr, sizeof(unsigned long));
+			memcpy(&targetAddr.sin_port, &tmpIpv4->sin_port, 2);
+			freeaddrinfo(targetHost);
+		}else if(targetHost->ai_family == AF_INET6){
+			family = AF_INET6;
+			targetAddr6.sin6_family = AF_INET6;
+			tmpIpv6 = (struct sockaddr_in6 *)targetHost->ai_addr;
+			memcpy(&targetAddr6.sin6_addr, &tmpIpv6->sin6_addr, sizeof(struct in6_addr));
+			memcpy(&targetAddr6.sin6_port, &tmpIpv6->sin6_port, 2);
+			targetAddr6.sin6_scope_id = tmpIpv6->sin6_scope_id;
+			freeaddrinfo(targetHost);
+		}else{
+#ifdef _DEBUG
+			printf("[E] Not implemented\n");
+#endif
+			freeaddrinfo(targetHost);
+			return -1;
+		}
+
+		if(family == AF_INET){	// IPv4
+			targetSock = socket(AF_INET, SOCK_STREAM, 0);
+
+			flags = fcntl(targetSock, F_GETFL, 0);
+			flags &= ~O_NONBLOCK;
+			fcntl(targetSock, F_SETFL, flags);
+
+#ifdef _DEBUG
+			printf("[I] Connecting to ip:%s port:%d\n", inet_ntoa(targetAddr.sin_addr), ntohs(targetAddr.sin_port));
+#endif
+
+			if(err = connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr)) < 0){
+#ifdef _DEBUG
+				printf("[E] Connect failed. errno:%d", err);
+#endif
+				return -1;
+			}
+
+#ifdef _DEBUG
+			printf("[I] Connected to ip:%s port:%d\n", inet_ntoa(targetAddr.sin_addr), ntohs(targetAddr.sin_port));
+#endif
+		}else if(family == AF_INET6){	// IPv6
+			targetSock = socket(AF_INET6, SOCK_STREAM, 0);
+
+			flags = fcntl(targetSock, F_GETFL, 0);
+			flags &= ~O_NONBLOCK;
+			fcntl(targetSock, F_SETFL, flags);
+
+#ifdef _DEBUG
+			inet_ntop(AF_INET6, &targetAddr6.sin6_addr, targetAddr6StringPointer, INET6_ADDRSTRLEN);
+			if(targetAddr6.sin6_scope_id > 0){
+				printf("[I] Connecting to ip:%s%%%d port:%d\n", targetAddr6StringPointer, targetAddr6.sin6_scope_id, ntohs(targetAddr6.sin6_port));
+			}else{
+				printf("[I] Connecting to ip:%s port:%d\n", targetAddr6StringPointer, ntohs(targetAddr6.sin6_port));
+			}
+#endif
+
+			if(err = connect(targetSock, (struct sockaddr *)&targetAddr6, sizeof(targetAddr6)) < 0){
+#ifdef _DEBUG
+				printf("[E] Connect failed. errno:%d", err);
+#endif
+				return -1;
+			}
+
+#ifdef _DEBUG
+			inet_ntop(AF_INET6, &targetAddr6.sin6_addr, targetAddr6StringPointer, INET6_ADDRSTRLEN);
+			if(targetAddr6.sin6_scope_id > 0){
+				printf("[I] Connected to ip:%s%%%d port:%d\n", targetAddr6StringPointer, targetAddr6.sin6_scope_id, ntohs(targetAddr6.sin6_port));
+			}else{
+				printf("[I] Connected to ip:%s port:%d\n", targetAddr6StringPointer, ntohs(targetAddr6.sin6_port));
+			}
+#endif
+		}else{
+#ifdef _DEBUG
+			printf("[E] Not implemented\n");
 #endif
 			return -1;
 		}
@@ -431,7 +544,7 @@ int worker(void *ptr)
 			sslParam.targetCtx = targetCtx;
 
 			SSL_CTX_set_mode(targetCtx, SSL_MODE_AUTO_RETRY);
-			
+
 			ret = SSL_CTX_set_min_proto_version(targetCtx, TLS1_2_VERSION);
 			if(ret == 0){
 #ifdef _DEBUG
@@ -767,14 +880,16 @@ void usage(char *filename)
 	printf("Normal mode  : client -> server\n");
 	printf("usage        : %s -h socks5_listen_ip -p socks5_listen_port -H socks5server_ip -P socks5server_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]\n", filename);
 	printf("example      : %s -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050\n", filename);
-	printf("             : %s -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050 -s\n", filename);
-	printf("             : %s -h 0.0.0.0 -p 9050 -H 192.168.0.10 -P 9050 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -h localhost -p 9050 -H 192.168.0.10 -P 9050 -s\n", filename);
+	printf("             : %s -h ::1 -p 9050 -H 192.168.0.10 -P 9050 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -h fe80::xxxx:xxxx:xxxx:xxxx%%eth0 -p 9050 -H fe80::yyyy:yyyy:yyyy:yyyy%%eth0 -P 9050 -s -A 3 -B 0 -C 3 -D 0\n", filename);
 	printf("or\n");
 	printf("Reverse mode : client <- server\n");
 	printf("usage        : %s -r -h socks5_listen_ip -p socks5_listen_port -H socks5server_listen_ip -P socks5server_listen_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]\n", filename);
 	printf("example      : %s -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234\n", filename);
-	printf("             : %s -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s\n", filename);
-	printf("             : %s -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -r -h localhost -p 9050 -H 0.0.0.0 -P 1234 -s\n", filename);
+	printf("             : %s -r -h ::1 -p 9050 -H 0.0.0.0 -P 1234 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -r -h fe80::xxxx:xxxx:xxxx:xxxx%%eth0 -p 9050 -H fe80::xxxx:xxxx:xxxx:xxxx%%eth0 -P 1234 -s -A 3 -B 0 -C 3 -D 0\n", filename);
 }
 
 int main(int argc, char **argv)
@@ -862,10 +977,58 @@ int main(int argc, char **argv)
 	int serverSock, clientSock, server2Sock;
 	int targetSock = -1;
 	struct sockaddr_in serverAddr, clientAddr, server2Addr, targetAddr;
+	struct sockaddr_in *tmpIpv4;
+	struct sockaddr_in6 serverAddr6, clientAddr6, server2Addr6, targetAddr6;
+	struct sockaddr_in6 *tmpIpv6;
+	struct addrinfo hints, hints2;
+	struct addrinfo *serverHost;
+	struct addrinfo *server2Host;
+
+	bzero(&serverAddr, sizeof(struct sockaddr_in));
+	bzero(&clientAddr, sizeof(struct sockaddr_in));
+	bzero(&server2Addr, sizeof(struct sockaddr_in));
+	bzero(&targetAddr, sizeof(struct sockaddr_in));
+
+	bzero(&serverAddr6, sizeof(struct sockaddr_in6));
+	bzero(&clientAddr6, sizeof(struct sockaddr_in6));
+	bzero(&server2Addr6, sizeof(struct sockaddr_in6));
+	bzero(&targetAddr6, sizeof(struct sockaddr_in6));
+
+	bzero(&hints, sizeof(struct addrinfo));
+	bzero(&hints2, sizeof(struct addrinfo));
+
+	char *serverDomainname = socks5ServerIp;
+	u_short serverDomainnameLength = 0;
+	if(serverDomainname != NULL){
+		serverDomainnameLength = strlen(serverDomainname);
+	}
+
+	char *server2Domainname = socks5Server2Ip;
+	u_short server2DomainnameLength = 0;
+	if(server2Domainname != NULL){
+		server2DomainnameLength = strlen(server2Domainname);
+	}
+
+	char *serverPortNumber = socks5ServerPort;
+	char *server2PortNumber = socks5Server2Port;
+
+	char serverAddr6String[INET6_ADDRSTRLEN+1] = {0};
+	char *serverAddr6StringPointer = serverAddr6String;
+	char clientAddr6String[INET6_ADDRSTRLEN+1] = {0};
+	char *clientAddr6StringPointer = clientAddr6String;
+	char server2Addr6String[INET6_ADDRSTRLEN+1] = {0};
+	char *server2Addr6StringPointer = server2Addr6String;
+	char targetAddr6String[INET6_ADDRSTRLEN+1] = {0};
+	char *targetAddr6StringPointer = targetAddr6String;
+
+	char *colon = NULL;
+	int family = 0;
 	int reuse = 1;
 	int flags;
-	int targetAddrLen = sizeof(targetAddr);
 	int clientAddrLen = sizeof(clientAddr);
+	int clientAddr6Len = sizeof(clientAddr6);
+	int targetAddrLen = sizeof(targetAddr);
+	int targetAddr6Len = sizeof(targetAddr6);
 
 	pPARAM pParam;
 	
@@ -896,60 +1059,164 @@ int main(int argc, char **argv)
 		printf("[I] Timeout recv/send tv_sec(0-10 sec):%ld sec recv/send tv_usec(0-1000000 microsec):%ld microsec.\n", tv_sec, tv_usec);
 		printf("[I] Timeout forwarder tv_sec(0-3600 sec):%ld sec forwarder tv_usec(0-1000000 microsec):%ld microsec.\n", forwarder_tv_sec, forwarder_tv_usec);
 #endif
-		
-		serverAddr.sin_family = AF_INET;
-		serverAddr.sin_addr.s_addr = inet_addr(socks5ServerIp);
-		serverAddr.sin_port = htons(atoi(socks5ServerPort));
-		
-		serverSock = socket(AF_INET, SOCK_STREAM, 0);
-		setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
-		
-		// bind
-		if(bind(serverSock, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-#ifdef _DEBUG
-			printf("[E] bind error.\n");
-#endif
-			return -1;
-		}
-		
-		// listen
-		listen(serverSock, 5);
-#ifdef _DEBUG
-		printf("[I] Listenning port %d on %s.\n", ntohs(serverAddr.sin_port), inet_ntoa(serverAddr.sin_addr));
-#endif
 
-		// accept
-		while((clientSock = accept(serverSock, (struct sockaddr *)&clientAddr, (socklen_t *)&clientAddrLen))){
+		colon = strstr(serverDomainname, ":");	// check ipv6 address
+		if(colon == NULL){	// ipv4 address or domainname
+			hints.ai_family = AF_INET;	// IPv4
+			if(getaddrinfo(serverDomainname, serverPortNumber, &hints, &serverHost) != 0){
+				hints.ai_family = AF_INET6;	// IPv6
+				if(getaddrinfo(serverDomainname, serverPortNumber, &hints, &serverHost) != 0){
 #ifdef _DEBUG
-			printf("[I] Connected from %s.\n", inet_ntoa(clientAddr.sin_addr));
+					printf("[E] Cannot resolv the domain name:%s\n", serverDomainname);
 #endif
-
-			flags = fcntl(clientSock, F_GETFL, 0);
-			flags &= ~O_NONBLOCK;
-			fcntl(clientSock, F_SETFL, flags);
-			
-			pthread_t thread;
-			
-			pParam = (pPARAM)calloc(1, sizeof(PARAM));
-			pParam->targetSock = targetSock;
-			pParam->clientSock = clientSock;
-			pParam->targetSsl = NULL;
-			pParam->tv_sec = tv_sec;
-			pParam->tv_usec = tv_usec;
-			pParam->forwarder_tv_sec = forwarder_tv_sec;
-			pParam->forwarder_tv_usec = forwarder_tv_usec;
-			
-			if(pthread_create(&thread, NULL, (void *)worker, pParam))
-			{
+					return -1;
+				}
+			}
+		}else{	// ipv6 address
+			hints.ai_family = AF_INET6;	// IPv6
+			if(getaddrinfo(serverDomainname, serverPortNumber, &hints, &serverHost) != 0){
 #ifdef _DEBUG
-				printf("[E] pthread_create failed.\n");
+				printf("[E] Cannot resolv the domain name:%s\n", serverDomainname);
 #endif
-				close(clientSock);
-			}else{
-				pthread_detach(thread);
+				return -1;
 			}
 		}
-		
+
+		if(serverHost->ai_family == AF_INET){
+			family = AF_INET;
+			serverAddr.sin_family = AF_INET;
+			tmpIpv4 = (struct sockaddr_in *)serverHost->ai_addr;
+			memcpy(&serverAddr.sin_addr, &tmpIpv4->sin_addr, sizeof(unsigned long));
+			memcpy(&serverAddr.sin_port, &tmpIpv4->sin_port, 2);
+			freeaddrinfo(serverHost);
+		}else if(serverHost->ai_family == AF_INET6){
+			family = AF_INET6;
+			serverAddr6.sin6_family = AF_INET6;
+			tmpIpv6 = (struct sockaddr_in6 *)serverHost->ai_addr;
+			memcpy(&serverAddr6.sin6_addr, &tmpIpv6->sin6_addr, sizeof(struct in6_addr));
+			memcpy(&serverAddr6.sin6_port, &tmpIpv6->sin6_port, 2);
+			serverAddr6.sin6_scope_id = tmpIpv6->sin6_scope_id;
+			freeaddrinfo(serverHost);
+		}else{
+#ifdef _DEBUG
+			printf("[E] Not implemented\n");
+#endif
+			freeaddrinfo(serverHost);
+			return -1;
+		}
+
+		if(family == AF_INET){	// IPv4
+			serverSock = socket(AF_INET, SOCK_STREAM, 0);
+			reuse = 1;
+			setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+
+			// bind
+			if(bind(serverSock, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+#ifdef _DEBUG
+				printf("[E] bind error.\n");
+#endif
+				return -1;
+			}
+
+			// listen
+			listen(serverSock, 5);
+#ifdef _DEBUG
+			printf("[I] Listenning port %d on %s.\n", ntohs(serverAddr.sin_port), inet_ntoa(serverAddr.sin_addr));
+#endif
+
+			// accept
+			while((clientSock = accept(serverSock, (struct sockaddr *)&clientAddr, (socklen_t *)&clientAddrLen))){
+#ifdef _DEBUG
+				printf("[I] Connected from ip:%s port:%d.\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+#endif
+
+				flags = fcntl(clientSock, F_GETFL, 0);
+				flags &= ~O_NONBLOCK;
+				fcntl(clientSock, F_SETFL, flags);
+
+				pthread_t thread;
+
+				pParam = (pPARAM)calloc(1, sizeof(PARAM));
+				pParam->targetSock = targetSock;
+				pParam->clientSock = clientSock;
+				pParam->targetSsl = NULL;
+				pParam->tv_sec = tv_sec;
+				pParam->tv_usec = tv_usec;
+				pParam->forwarder_tv_sec = forwarder_tv_sec;
+				pParam->forwarder_tv_usec = forwarder_tv_usec;
+
+				if(pthread_create(&thread, NULL, (void *)worker, pParam))
+				{
+#ifdef _DEBUG
+					printf("[E] pthread_create failed.\n");
+#endif
+					close(clientSock);
+				}else{
+					pthread_detach(thread);
+				}
+			}
+		}else if(family == AF_INET6){	// IPv6
+			serverSock = socket(AF_INET6, SOCK_STREAM, 0);
+			reuse = 1;
+			setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+
+			// bind
+			if(bind(serverSock, (struct sockaddr *)&serverAddr6, sizeof(serverAddr6)) == -1) {
+#ifdef _DEBUG
+				printf("[E] bind error.\n");
+#endif
+				return -1;
+			}
+
+			// listen
+			listen(serverSock, 5);
+#ifdef _DEBUG
+			inet_ntop(AF_INET6, &serverAddr6.sin6_addr, serverAddr6StringPointer, INET6_ADDRSTRLEN);
+			if(serverAddr6.sin6_scope_id > 0){
+				printf("[I] Listening port %d on %s%%%d.\n", ntohs(serverAddr6.sin6_port), serverAddr6StringPointer, serverAddr6.sin6_scope_id);
+			}else{
+				printf("[I] Listening port %d on %s.\n", ntohs(serverAddr6.sin6_port), serverAddr6StringPointer);
+			}
+#endif
+
+			// accept
+			while((clientSock = accept(serverSock, (struct sockaddr *)&clientAddr6, (socklen_t *)&clientAddr6Len))){
+#ifdef _DEBUG
+				inet_ntop(AF_INET6, &clientAddr6.sin6_addr, clientAddr6StringPointer, INET6_ADDRSTRLEN);
+				if(clientAddr6.sin6_scope_id > 0){
+					printf("[I] Connected from ip:%s%%%d port:%d.\n", clientAddr6StringPointer, clientAddr6.sin6_scope_id, ntohs(clientAddr6.sin6_port));
+				}else{
+					printf("[I] Connected from ip:%s port:%d.\n", clientAddr6StringPointer, ntohs(clientAddr6.sin6_port));
+				}
+#endif
+
+				flags = fcntl(clientSock, F_GETFL, 0);
+				flags &= ~O_NONBLOCK;
+				fcntl(clientSock, F_SETFL, flags);
+
+				pthread_t thread;
+
+				pParam = (pPARAM)calloc(1, sizeof(PARAM));
+				pParam->targetSock = targetSock;
+				pParam->clientSock = clientSock;
+				pParam->targetSsl = NULL;
+				pParam->tv_sec = tv_sec;
+				pParam->tv_usec = tv_usec;
+				pParam->forwarder_tv_sec = forwarder_tv_sec;
+				pParam->forwarder_tv_usec = forwarder_tv_usec;
+
+				if(pthread_create(&thread, NULL, (void *)worker, pParam))
+				{
+#ifdef _DEBUG
+					printf("[E] pthread_create failed.\n");
+#endif
+					close(clientSock);
+				}else{
+					pthread_detach(thread);
+				}
+			}
+		}
+
 		close(serverSock);
 
 	}else{	// Reverse mode
@@ -970,32 +1237,110 @@ int main(int argc, char **argv)
 		printf("[I] Timeout forwarder tv_sec(0-3600 sec):%ld sec forwarder tv_usec(0-1000000 microsec):%ld microsec.\n", forwarder_tv_sec, forwarder_tv_usec);
 #endif
 
-		server2Addr.sin_family = AF_INET;
-		server2Addr.sin_addr.s_addr = inet_addr(socks5Server2Ip);
-		server2Addr.sin_port = htons(atoi(socks5Server2Port));
-
-		server2Sock = socket(AF_INET, SOCK_STREAM, 0);
-		setsockopt(server2Sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
-			
-		// bind
-		if(bind(server2Sock, (struct sockaddr *)&server2Addr, sizeof(server2Addr)) == -1) {
+		colon = strstr(server2Domainname, ":");	// check ipv6 address
+		if(colon == NULL){	// ipv4 address or domainname
+			hints2.ai_family = AF_INET;	// IPv4
+			if(getaddrinfo(server2Domainname, server2PortNumber, &hints2, &server2Host) != 0){
+				hints2.ai_family = AF_INET6;	// IPv6
+				if(getaddrinfo(server2Domainname, server2PortNumber, &hints2, &server2Host) != 0){
 #ifdef _DEBUG
-			printf("[E] bind error.\n");
+					printf("[E] Cannot resolv the domain name:%s\n", server2Domainname);
 #endif
+					return -1;
+				}
+			}
+		}else{	// ipv6 address
+			hints2.ai_family = AF_INET6;	// IPv6
+			if(getaddrinfo(server2Domainname, server2PortNumber, &hints2, &server2Host) != 0){
+#ifdef _DEBUG
+				printf("[E] Cannot resolv the domain name:%s\n", server2Domainname);
+#endif
+				return -1;
+			}
+		}
+
+		if(server2Host->ai_family == AF_INET){
+			family = AF_INET;
+			server2Addr.sin_family = AF_INET;
+			tmpIpv4 = (struct sockaddr_in *)server2Host->ai_addr;
+			memcpy(&server2Addr.sin_addr, &tmpIpv4->sin_addr, sizeof(unsigned long));
+			memcpy(&server2Addr.sin_port, &tmpIpv4->sin_port, 2);
+			freeaddrinfo(server2Host);
+		}else if(server2Host->ai_family == AF_INET6){
+			family = AF_INET6;
+			server2Addr6.sin6_family = AF_INET6;
+			tmpIpv6 = (struct sockaddr_in6 *)server2Host->ai_addr;
+			memcpy(&server2Addr6.sin6_addr, &tmpIpv6->sin6_addr, sizeof(struct in6_addr));
+			memcpy(&server2Addr6.sin6_port, &tmpIpv6->sin6_port, 2);
+			server2Addr6.sin6_scope_id = tmpIpv6->sin6_scope_id;
+			freeaddrinfo(server2Host);
+		}else{
+#ifdef _DEBUG
+			printf("[E] Not implemented\n");
+#endif
+			freeaddrinfo(server2Host);
 			return -1;
 		}
-	
-		// listen
-		listen(server2Sock, 5);
+
+		if(family == AF_INET){	// IPv4
+			server2Sock = socket(AF_INET, SOCK_STREAM, 0);
+			reuse = 1;
+			setsockopt(server2Sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+
+			// bind
+			if(bind(server2Sock, (struct sockaddr *)&server2Addr, sizeof(server2Addr)) == -1) {
 #ifdef _DEBUG
-		printf("[I] Listenning port %d on %s.\n", ntohs(server2Addr.sin_port), inet_ntoa(server2Addr.sin_addr));
+				printf("[E] bind error.\n");
+#endif
+				return -1;
+			}
+
+			// listen
+			listen(server2Sock, 5);
+#ifdef _DEBUG
+			printf("[I] Listenning port %d on %s.\n", ntohs(server2Addr.sin_port), inet_ntoa(server2Addr.sin_addr));
 #endif
 
-		// accept
-		targetSock = accept(server2Sock, (struct sockaddr *)&targetAddr, (socklen_t *)&targetAddrLen);
+			// accept
+			targetSock = accept(server2Sock, (struct sockaddr *)&targetAddr, (socklen_t *)&targetAddrLen);
 #ifdef _DEBUG
-		printf("[I] Connected from %s.\n", inet_ntoa(targetAddr.sin_addr));
+			printf("[I] Connected from ip:%s port:%d.\n", inet_ntoa(targetAddr.sin_addr), ntohs(targetAddr.sin_port));
 #endif
+		}else if(family == AF_INET6){	// IPv6
+			server2Sock = socket(AF_INET6, SOCK_STREAM, 0);
+			reuse = 1;
+			setsockopt(server2Sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+
+			// bind
+			if(bind(server2Sock, (struct sockaddr *)&server2Addr6, sizeof(server2Addr6)) == -1) {
+#ifdef _DEBUG
+				printf("[E] bind error.\n");
+#endif
+				return -1;
+			}
+
+			// listen
+			listen(server2Sock, 5);
+#ifdef _DEBUG
+			inet_ntop(AF_INET6, &server2Addr6.sin6_addr, server2Addr6StringPointer, INET6_ADDRSTRLEN);
+			if(server2Addr6.sin6_scope_id > 0){
+				printf("[I] Listening port %d on %s%%%d.\n", ntohs(server2Addr6.sin6_port), server2Addr6StringPointer, server2Addr6.sin6_scope_id);
+			}else{
+				printf("[I] Listening port %d on %s.\n", ntohs(server2Addr6.sin6_port), server2Addr6StringPointer);
+			}
+#endif
+
+			// accept
+			targetSock = accept(server2Sock, (struct sockaddr *)&targetAddr6, (socklen_t *)&targetAddr6Len);
+#ifdef _DEBUG
+			inet_ntop(AF_INET6, &targetAddr6.sin6_addr, targetAddr6StringPointer, INET6_ADDRSTRLEN);
+			if(targetAddr6.sin6_scope_id > 0){
+				printf("[I] Connected from ip:%s%%%d port:%d.\n", targetAddr6StringPointer, targetAddr6.sin6_scope_id, ntohs(targetAddr6.sin6_port));
+			}else{
+				printf("[I] Connected from ip:%s port:%d.\n", targetAddr6StringPointer, ntohs(targetAddr6.sin6_port));
+			}
+#endif
+		}
 
 		flags = fcntl(targetSock, F_GETFL, 0);
 		flags &= ~O_NONBLOCK;
@@ -1095,56 +1440,178 @@ int main(int argc, char **argv)
 			printf("[I] Succeed Socks5 over TLS connection. (SSL_connect)\n");
 #endif
 		}
-		
-		serverAddr.sin_family = AF_INET;
-		serverAddr.sin_addr.s_addr = inet_addr(socks5ServerIp);
-		serverAddr.sin_port = htons(atoi(socks5ServerPort));
 
-		serverSock = socket(AF_INET, SOCK_STREAM, 0);
-		setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
-		
-		// bind
-		if(bind(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) == -1) {
+		colon = strstr(serverDomainname, ":");	// check ipv6 address
+		if(colon == NULL){	// ipv4 address or domainname
+			hints.ai_family = AF_INET;	// IPv4
+			if(getaddrinfo(serverDomainname, serverPortNumber, &hints, &serverHost) != 0){
+				hints.ai_family = AF_INET6;	// IPv6
+				if(getaddrinfo(serverDomainname, serverPortNumber, &hints, &serverHost) != 0){
 #ifdef _DEBUG
-			printf("[E] bind error.\n");
+					printf("[E] Cannot resolv the domain name:%s\n", serverDomainname);
 #endif
-			finiSsl(&sslParam);
+					if(tlsFlag == 1){	// tls
+						finiSsl(&sslParam);
+					}
+					close(targetSock);
+					close(server2Sock);
+					return -1;
+				}
+			}
+		}else{	// ipv6 address
+			hints.ai_family = AF_INET6;	// IPv6
+			if(getaddrinfo(serverDomainname, serverPortNumber, &hints, &serverHost) != 0){
+#ifdef _DEBUG
+				printf("[E] Cannot resolv the domain name:%s\n", serverDomainname);
+#endif
+				if(tlsFlag == 1){	// tls
+					finiSsl(&sslParam);
+				}
+				close(targetSock);
+				close(server2Sock);
+				return -1;
+			}
+		}
+
+		if(serverHost->ai_family == AF_INET){
+			family = AF_INET;
+			serverAddr.sin_family = AF_INET;
+			tmpIpv4 = (struct sockaddr_in *)serverHost->ai_addr;
+			memcpy(&serverAddr.sin_addr, &tmpIpv4->sin_addr, sizeof(unsigned long));
+			memcpy(&serverAddr.sin_port, &tmpIpv4->sin_port, 2);
+			freeaddrinfo(serverHost);
+		}else if(serverHost->ai_family == AF_INET6){
+			family = AF_INET6;
+			serverAddr6.sin6_family = AF_INET6;
+			tmpIpv6 = (struct sockaddr_in6 *)serverHost->ai_addr;
+			memcpy(&serverAddr6.sin6_addr, &tmpIpv6->sin6_addr, sizeof(struct in6_addr));
+			memcpy(&serverAddr6.sin6_port, &tmpIpv6->sin6_port, 2);
+			serverAddr6.sin6_scope_id = tmpIpv6->sin6_scope_id;
+			freeaddrinfo(serverHost);
+		}else{
+#ifdef _DEBUG
+			printf("[E] Not implemented\n");
+#endif
+			freeaddrinfo(serverHost);
+			if(tlsFlag == 1){	// tls
+				finiSsl(&sslParam);
+			}
 			close(targetSock);
 			close(server2Sock);
-			close(serverSock);
 			return -1;
 		}
-		
-		// listen
-		listen(serverSock, 5);
+
+		if(family == AF_INET){	// IPv4
+			serverSock = socket(AF_INET, SOCK_STREAM, 0);
+			reuse = 1;
+			setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+
+			// bind
+			if(bind(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) == -1) {
 #ifdef _DEBUG
-		printf("[I] Listenning port %d on %s.\n", ntohs(serverAddr.sin_port), inet_ntoa(serverAddr.sin_addr));
+				printf("[E] bind error.\n");
+#endif
+				if(tlsFlag == 1){	// tls
+					finiSsl(&sslParam);
+				}
+				close(targetSock);
+				close(server2Sock);
+				close(serverSock);
+				return -1;
+			}
+
+			// listen
+			listen(serverSock, 5);
+#ifdef _DEBUG
+			printf("[I] Listenning port %d on %s.\n", ntohs(serverAddr.sin_port), inet_ntoa(serverAddr.sin_addr));
 #endif
 
-		// accept
-		while((clientSock = accept(serverSock, (struct sockaddr *)&clientAddr, (socklen_t *)&clientAddrLen))){
+			// accept
+			while((clientSock = accept(serverSock, (struct sockaddr *)&clientAddr, (socklen_t *)&clientAddrLen))){
 #ifdef _DEBUG
-			printf("[I] Connected from %s.\n", inet_ntoa(clientAddr.sin_addr));
+				printf("[I] Connected from ip:%s port:%d.\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
 #endif
-	
-			flags = fcntl(clientSock, F_GETFL, 0);
-			flags &= ~O_NONBLOCK;
-			fcntl(clientSock, F_SETFL, flags);
-			
-			pthread_t thread;
-			
-			pParam = (pPARAM)calloc(1, sizeof(PARAM));
-			pParam->targetSock = targetSock;
-			pParam->clientSock = clientSock;
-			pParam->targetSsl = targetSsl;
-			pParam->tv_sec = tv_sec;
-			pParam->tv_usec = tv_usec;
-			pParam->forwarder_tv_sec = forwarder_tv_sec;
-			pParam->forwarder_tv_usec = forwarder_tv_usec;
-			
-			err = worker(pParam);
-			if(err == -2){
-				break;
+
+				flags = fcntl(clientSock, F_GETFL, 0);
+				flags &= ~O_NONBLOCK;
+				fcntl(clientSock, F_SETFL, flags);
+
+				pthread_t thread;
+
+				pParam = (pPARAM)calloc(1, sizeof(PARAM));
+				pParam->targetSock = targetSock;
+				pParam->clientSock = clientSock;
+				pParam->targetSsl = targetSsl;
+				pParam->tv_sec = tv_sec;
+				pParam->tv_usec = tv_usec;
+				pParam->forwarder_tv_sec = forwarder_tv_sec;
+				pParam->forwarder_tv_usec = forwarder_tv_usec;
+
+				err = worker(pParam);
+				if(err == -2){
+					break;
+				}
+			}
+		}else if(family == AF_INET6){	// IPv6
+			serverSock = socket(AF_INET6, SOCK_STREAM, 0);
+			reuse = 1;
+			setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int));
+
+			// bind
+			if(bind(serverSock, (struct sockaddr *) &serverAddr6, sizeof(serverAddr6)) == -1) {
+#ifdef _DEBUG
+				printf("[E] bind error.\n");
+#endif
+				if(tlsFlag == 1){	// tls
+					finiSsl(&sslParam);
+				}
+				close(targetSock);
+				close(server2Sock);
+				close(serverSock);
+				return -1;
+			}
+
+			// listen
+			listen(serverSock, 5);
+#ifdef _DEBUG
+			inet_ntop(AF_INET6, &serverAddr6.sin6_addr, serverAddr6StringPointer, INET6_ADDRSTRLEN);
+			if(serverAddr6.sin6_scope_id > 0){
+				printf("[I] Listening port %d on %s%%%d.\n", ntohs(serverAddr6.sin6_port), serverAddr6StringPointer, serverAddr6.sin6_scope_id);
+			}else{
+				printf("[I] Listening port %d on %s.\n", ntohs(serverAddr6.sin6_port), serverAddr6StringPointer);
+			}
+#endif
+
+			// accept
+			while((clientSock = accept(serverSock, (struct sockaddr *)&clientAddr6, (socklen_t *)&clientAddr6Len))){
+#ifdef _DEBUG
+				inet_ntop(AF_INET6, &clientAddr6.sin6_addr, clientAddr6StringPointer, INET6_ADDRSTRLEN);
+				if(clientAddr6.sin6_scope_id > 0){
+					printf("[I] Connected from ip:%s%%%d port:%d.\n", clientAddr6StringPointer, clientAddr6.sin6_scope_id, ntohs(clientAddr6.sin6_port));
+				}else{
+					printf("[I] Connected from ip:%s port:%d.\n", clientAddr6StringPointer, ntohs(clientAddr6.sin6_port));
+				}
+#endif
+
+				flags = fcntl(clientSock, F_GETFL, 0);
+				flags &= ~O_NONBLOCK;
+				fcntl(clientSock, F_SETFL, flags);
+
+				pthread_t thread;
+
+				pParam = (pPARAM)calloc(1, sizeof(PARAM));
+				pParam->targetSock = targetSock;
+				pParam->clientSock = clientSock;
+				pParam->targetSsl = targetSsl;
+				pParam->tv_sec = tv_sec;
+				pParam->tv_usec = tv_usec;
+				pParam->forwarder_tv_sec = forwarder_tv_sec;
+				pParam->forwarder_tv_usec = forwarder_tv_usec;
+
+				err = worker(pParam);
+				if(err == -2){
+					break;
+				}
 			}
 		}
 
