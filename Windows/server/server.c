@@ -38,8 +38,6 @@ char *socks5ClientIp = NULL;
 char *socks5ClientPort = NULL;
 int reverseFlag = 0;
 int tlsFlag = 0;
-long tv_sec = 3;
-long tv_usec = 0;
 
 static char authenticationMethod = 0x0;	// 0x0:No Authentication Required	0x2:Username/Password Authentication
 char username[256] = "socks5user";
@@ -49,25 +47,41 @@ char cipherSuiteTLS1_2[1000] = "AESGCM+ECDSA:CHACHA20+ECDSA:+AES256";	// TLS1.2
 char cipherSuiteTLS1_3[1000] = "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256";	// TLS1.3
 
 
-int recvData(SOCKET socket, void *buffer, int length)
+int recvData(SOCKET socket, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int rec = 0;
 	int err = 0;
+	fd_set readfds;
+	timeval tv;
 
 	while(1){
-		rec = recv(socket, (char *)buffer, length, 0);	
-		if(rec == SOCKET_ERROR){
-			err = WSAGetLastError();
-			if(err == WSAEWOULDBLOCK){
-				Sleep(5);
-				continue;
+		FD_ZERO(&readfds);
+		FD_SET(socket, &readfds);
+		tv.tv_sec = tv_sec;
+		tv.tv_usec = tv_usec;
+
+		if(select(NULL, &readfds, NULL, NULL, &tv) == 0){
+#ifdef _DEBUG
+			printf("[I] recvData timeout.\n");
+#endif
+			break;
+		}
+
+		if(FD_ISSET(socket, &readfds)){
+			rec = recv(socket, (char *)buffer, length, 0);
+			if(rec == SOCKET_ERROR){
+				err = WSAGetLastError();
+				if(err == WSAEWOULDBLOCK){
+					Sleep(5);
+					continue;
+				}
+#ifdef _DEBUG
+				printf("[E] recv error:%d.\n", err);
+#endif
+				return -1;
+			}else{
+				break;
 			}
-#ifdef _DEBUG
-			printf("[E] recv error:%d.\n", err);
-#endif
-			return -1;
-		}else{
-			break;
 		}
 	}
 	
@@ -75,28 +89,44 @@ int recvData(SOCKET socket, void *buffer, int length)
 }
 
 
-int recvDataTls(SSL *ssl ,void *buffer, int length)
+int recvDataTls(SOCKET socket, SSL *ssl ,void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int rec = 0;
 	int err = 0;
+	fd_set readfds;
+	timeval tv;
 
 	while(1){
-		rec = SSL_read(ssl, buffer, length);
-		err = SSL_get_error(ssl, rec);
-		
-		if(err == SSL_ERROR_NONE){
-			break;
-		}else if(err == SSL_ERROR_ZERO_RETURN){
-			break;
-		}else if(err == SSL_ERROR_WANT_READ){
-			Sleep(5);
-		}else if(err == SSL_ERROR_WANT_WRITE){
-			Sleep(5);
-		}else{
+		FD_ZERO(&readfds);
+		FD_SET(socket, &readfds);
+		tv.tv_sec = tv_sec;
+		tv.tv_usec = tv_usec;
+
+		if(select(NULL, &readfds, NULL, NULL, &tv) == 0){
 #ifdef _DEBUG
-			printf("[E] SSL_read error:%d:%s.\n", err, ERR_error_string(ERR_peek_last_error(), NULL));
+			printf("[I] recvDataTls timeout.\n");
 #endif
-			return -2;
+			break;
+		}
+
+		if(FD_ISSET(socket, &readfds)){
+			rec = SSL_read(ssl, buffer, length);
+			err = SSL_get_error(ssl, rec);
+
+			if(err == SSL_ERROR_NONE){
+				break;
+			}else if(err == SSL_ERROR_ZERO_RETURN){
+				break;
+			}else if(err == SSL_ERROR_WANT_READ){
+				Sleep(5);
+			}else if(err == SSL_ERROR_WANT_WRITE){
+				Sleep(5);
+			}else{
+#ifdef _DEBUG
+				printf("[E] SSL_read error:%d:%s.\n", err, ERR_error_string(ERR_peek_last_error(), NULL));
+#endif
+				return -2;
+			}
 		}
 	}
 	
@@ -104,54 +134,86 @@ int recvDataTls(SSL *ssl ,void *buffer, int length)
 }
 
 
-int sendData(SOCKET socket, void *buffer, int length)
+int sendData(SOCKET socket, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int sen = 0;
 	int sendLength = 0;
 	int len = length;
 	int err = 0;
-	
+	fd_set writefds;
+	timeval tv;
+
 	while(len > 0){
-		sen = send(socket, (char *)buffer+sendLength, len, 0);
-		if(sen == SOCKET_ERROR){
-			err = WSAGetLastError();
-			if(err == WSAEWOULDBLOCK){
-				Sleep(5);
-				continue;
-			}
+		FD_ZERO(&writefds);
+		FD_SET(socket, &writefds);
+		tv.tv_sec = tv_sec;
+		tv.tv_usec = tv_usec;
+
+		if(select(NULL, NULL, &writefds, NULL, &tv) == 0){
 #ifdef _DEBUG
-			printf("[E] send error:%d.\n", err);
+			printf("[I] sendData timeout.\n");
 #endif
-			return -1;
+			break;
 		}
-		sendLength += sen;
-		len -= sen;
+
+		if(FD_ISSET(socket, &writefds)){
+			sen = send(socket, (char *)buffer+sendLength, len, 0);
+			if(sen == SOCKET_ERROR){
+				err = WSAGetLastError();
+				if(err == WSAEWOULDBLOCK){
+					Sleep(5);
+					continue;
+				}
+#ifdef _DEBUG
+				printf("[E] send error:%d.\n", err);
+#endif
+				return -1;
+			}
+			sendLength += sen;
+			len -= sen;
+		}
 	}
 	
 	return sendLength;
 }
 
 
-int sendDataTls(SSL *ssl, void *buffer, int length)
+int sendDataTls(SOCKET socket, SSL *ssl, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int sen = 0;
 	int err = 0;
+	fd_set writefds;
+	timeval tv;
 
 	while(1){
-		sen = SSL_write(ssl, buffer, length);
-		err = SSL_get_error(ssl, sen);
-		
-		if(err == SSL_ERROR_NONE){
-			break;
-		}else if(err == SSL_ERROR_WANT_WRITE){
-			Sleep(5);
-		}else if(err == SSL_ERROR_WANT_READ){
-			Sleep(5);
-		}else{
+		FD_ZERO(&writefds);
+		FD_SET(socket, &writefds);
+		tv.tv_sec = tv_sec;
+		tv.tv_usec = tv_usec;
+
+		if(select(NULL, NULL, &writefds, NULL, &tv) == 0){
 #ifdef _DEBUG
-			printf("[E] SSL_write error:%d:%s.\n", err, ERR_error_string(ERR_peek_last_error(), NULL));
+			printf("[I] sendDataTls timeout.\n");
 #endif
-			return -2;
+			break;
+		}
+
+		if(FD_ISSET(socket, &writefds)){
+			sen = SSL_write(ssl, buffer, length);
+			err = SSL_get_error(ssl, sen);
+
+			if(err == SSL_ERROR_NONE){
+				break;
+			}else if(err == SSL_ERROR_WANT_WRITE){
+				Sleep(5);
+			}else if(err == SSL_ERROR_WANT_READ){
+				Sleep(5);
+			}else{
+#ifdef _DEBUG
+				printf("[E] SSL_write error:%d:%s.\n", err, ERR_error_string(ERR_peek_last_error(), NULL));
+#endif
+				return -2;
+			}
 		}
 	}
 		
@@ -159,7 +221,7 @@ int sendDataTls(SSL *ssl, void *buffer, int length)
 }
 
 
-int forwarder(SOCKET clientSock, SOCKET targetSock)
+int forwarder(SOCKET clientSock, SOCKET targetSock, long tv_sec, long tv_usec)
 {
 	int rec, sen;
 	fd_set readfds;
@@ -182,8 +244,8 @@ int forwarder(SOCKET clientSock, SOCKET targetSock)
 		}
 		
 		if(FD_ISSET(clientSock, &readfds)){
-			if((rec = recvData(clientSock, buffer, BUFSIZ)) > 0){
-				sen = sendData(targetSock, buffer, rec);
+			if((rec = recv(clientSock, buffer, BUFSIZ, 0)) > 0){
+				sen = send(targetSock, buffer, rec, 0);
 				if(sen <= 0){
 					break;
 				}
@@ -193,8 +255,8 @@ int forwarder(SOCKET clientSock, SOCKET targetSock)
 		}
 		
 		if(FD_ISSET(targetSock, &readfds)){
-			if((rec = recvData(targetSock, buffer, BUFSIZ)) > 0){
-				sen = sendData(clientSock, buffer, rec);
+			if((rec = recv(targetSock, buffer, BUFSIZ, 0)) > 0){
+				sen = send(clientSock, buffer, rec, 0);
 				if(sen <= 0){
 					break;
 				}
@@ -208,7 +270,7 @@ int forwarder(SOCKET clientSock, SOCKET targetSock)
 }
 
 
-int forwarderTls(SOCKET clientSock, SOCKET targetSock, SSL *clientSsl)
+int forwarderTls(SOCKET clientSock, SOCKET targetSock, SSL *clientSsl, long tv_sec, long tv_usec)
 {
 	int rec, sen;
 	fd_set readfds;
@@ -236,7 +298,7 @@ int forwarderTls(SOCKET clientSock, SOCKET targetSock, SSL *clientSsl)
 			err = SSL_get_error(clientSsl, rec);
 			
 			if(err == SSL_ERROR_NONE){
-				sen = sendData(targetSock, buffer, rec);
+				sen = send(targetSock, buffer, rec, 0);
 				if(sen <= 0){
 					break;
 				}
@@ -255,7 +317,7 @@ int forwarderTls(SOCKET clientSock, SOCKET targetSock, SSL *clientSsl)
 		}
 		
 		if(FD_ISSET(targetSock, &readfds)){
-			if((rec = recvData(targetSock, buffer, BUFSIZ)) > 0){
+			if((rec = recv(targetSock, buffer, BUFSIZ, 0)) > 0){
 				while(1){
 					sen = SSL_write(clientSsl, buffer, rec);
 					err = SSL_get_error(clientSsl, sen);
@@ -283,7 +345,7 @@ int forwarderTls(SOCKET clientSock, SOCKET targetSock, SSL *clientSsl)
 }
 
 
-int sendSocksResponseIpv4(SOCKET clientSock, char ver, char req, char rsv, char atyp)
+int sendSocksResponseIpv4(SOCKET clientSock, char ver, char req, char rsv, char atyp, long tv_sec, long tv_usec)
 {
 
 	int sen;
@@ -296,7 +358,7 @@ int sendSocksResponseIpv4(SOCKET clientSock, char ver, char req, char rsv, char 
 	memset(pSocksResponseIpv4->bndAddr, 0, 4);	// BND.ADDR
 	memset(pSocksResponseIpv4->bndPort, 0, 2);	// BND.PORT
 
-	sen = sendData(clientSock, (char *)pSocksResponseIpv4, sizeof(SOCKS_RESPONSE_IPV4));
+	sen = sendData(clientSock, (char *)pSocksResponseIpv4, sizeof(SOCKS_RESPONSE_IPV4), tv_sec, tv_usec);
 
 	free(pSocksResponseIpv4);
 
@@ -304,7 +366,7 @@ int sendSocksResponseIpv4(SOCKET clientSock, char ver, char req, char rsv, char 
 }
 
 
-int sendSocksResponseIpv4Tls(SSL *clientSsl, char ver, char req, char rsv, char atyp)
+int sendSocksResponseIpv4Tls(SOCKET clientSock, SSL *clientSsl, char ver, char req, char rsv, char atyp, long tv_sec, long tv_usec)
 {
 
 	int sen;
@@ -317,7 +379,7 @@ int sendSocksResponseIpv4Tls(SSL *clientSsl, char ver, char req, char rsv, char 
 	memset(pSocksResponseIpv4->bndAddr, 0, 4);	// BND.ADDR
 	memset(pSocksResponseIpv4->bndPort, 0, 2);	// BND.PORT
 
-	sen = sendDataTls(clientSsl, (char *)pSocksResponseIpv4, sizeof(SOCKS_RESPONSE_IPV4));
+	sen = sendDataTls(clientSock, clientSsl, (char *)pSocksResponseIpv4, sizeof(SOCKS_RESPONSE_IPV4), tv_sec, tv_usec);
 
 	free(pSocksResponseIpv4);
 
@@ -325,7 +387,7 @@ int sendSocksResponseIpv4Tls(SSL *clientSsl, char ver, char req, char rsv, char 
 }
 
 
-int sendSocksResponseIpv6(SOCKET clientSock, char ver, char req, char rsv, char atyp)
+int sendSocksResponseIpv6(SOCKET clientSock, char ver, char req, char rsv, char atyp, long tv_sec, long tv_usec)
 {
 
 	int sen;
@@ -338,7 +400,7 @@ int sendSocksResponseIpv6(SOCKET clientSock, char ver, char req, char rsv, char 
 	memset(pSocksResponseIpv6->bndAddr, 0, 16);	// BND.ADDR
 	memset(pSocksResponseIpv6->bndPort, 0, 2);		// BND.PORT
 	
-	sen = sendData(clientSock, (char *)pSocksResponseIpv6, sizeof(SOCKS_RESPONSE_IPV6));
+	sen = sendData(clientSock, (char *)pSocksResponseIpv6, sizeof(SOCKS_RESPONSE_IPV6), tv_sec, tv_usec);
 	
 	free(pSocksResponseIpv6);
 
@@ -346,7 +408,7 @@ int sendSocksResponseIpv6(SOCKET clientSock, char ver, char req, char rsv, char 
 }
 
 
-int sendSocksResponseIpv6Tls(SSL *clientSsl, char ver, char req, char rsv, char atyp)
+int sendSocksResponseIpv6Tls(SOCKET clientSock, SSL *clientSsl, char ver, char req, char rsv, char atyp, long tv_sec, long tv_usec)
 {
 
 	int sen;
@@ -359,7 +421,7 @@ int sendSocksResponseIpv6Tls(SSL *clientSsl, char ver, char req, char rsv, char 
 	memset(pSocksResponseIpv6->bndAddr, 0, 16);	// BND.ADDR
 	memset(pSocksResponseIpv6->bndPort, 0, 2);		// BND.PORT
 	
-	sen = sendDataTls(clientSsl, (char *)pSocksResponseIpv6, sizeof(SOCKS_RESPONSE_IPV6));
+	sen = sendDataTls(clientSock, clientSsl, (char *)pSocksResponseIpv6, sizeof(SOCKS_RESPONSE_IPV6), tv_sec, tv_usec);
 	
 	free(pSocksResponseIpv6);
 
@@ -386,6 +448,10 @@ int worker(void *ptr)
 {
 	pPARAM pParam = (pPARAM)ptr;
 	SOCKET clientSock = pParam->clientSock;
+	long tv_sec = pParam->tv_sec;		// recv send
+	long tv_usec = pParam->tv_usec;		// recv send
+	long forwarder_tv_sec = pParam->forwarder_tv_sec;
+	long forwarder_tv_usec = pParam->forwarder_tv_usec;
 
 	char buffer[BUFSIZ+1];
 	ZeroMemory(buffer, BUFSIZ+1);
@@ -546,9 +612,17 @@ int worker(void *ptr)
 #endif
 	do{
 		if(tlsFlag == 0){
-			rec = recvData(clientSock, buffer, BUFSIZ);
+			if(reverseFlag == 0){
+				rec = recvData(clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
+			}else{
+				rec = recvData(clientSock, buffer, BUFSIZ, 3600, 0);
+			}
 		}else{
-			rec = recvDataTls(clientSsl, buffer, BUFSIZ);
+			if(reverseFlag == 0){
+				rec = recvDataTls(clientSock, clientSsl, buffer, BUFSIZ, tv_sec, tv_usec);
+			}else{
+				rec = recvDataTls(clientSock, clientSsl, buffer, BUFSIZ, 3600, 0);
+			}
 		}
 		
 		if(rec == -1 || rec == -2){
@@ -600,9 +674,9 @@ int worker(void *ptr)
 		pSelectionResponse->method = 0xFF;
 	}
 	if(tlsFlag == 0){
-		sen = sendData(clientSock, pSelectionResponse, sizeof(SELECTION_RESPONSE));
+		sen = sendData(clientSock, pSelectionResponse, sizeof(SELECTION_RESPONSE), tv_sec, tv_usec);
 	}else{
-		sen = sendDataTls(clientSsl, pSelectionResponse, sizeof(SELECTION_RESPONSE));
+		sen = sendDataTls(clientSock, clientSsl, pSelectionResponse, sizeof(SELECTION_RESPONSE), tv_sec, tv_usec);
 	}
 	free(pSelectionResponse);
 #ifdef _DEBUG
@@ -634,9 +708,9 @@ int worker(void *ptr)
 		printf("[I] Receiving username password authentication request.\n");
 #endif
 		if(tlsFlag == 0){
-			rec = recvData(clientSock, buffer, BUFSIZ);
+			rec = recvData(clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
 		}else{
-			rec = recvDataTls(clientSsl, buffer, BUFSIZ);
+			rec = recvDataTls(clientSock, clientSsl, buffer, BUFSIZ, tv_sec, tv_usec);
 		}
 		if(rec <= 0){
 #ifdef _DEBUG
@@ -675,9 +749,9 @@ int worker(void *ptr)
 			pUsernamePasswordAuthenticationResponse->status = 0x0;
 		
 			if(tlsFlag == 0){
-				sen = sendData(clientSock, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE));
+				sen = sendData(clientSock, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE), tv_sec, tv_usec);
 			}else{
-				sen = sendDataTls(clientSsl, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE));
+				sen = sendDataTls(clientSock, clientSsl, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE), tv_sec, tv_usec);
 			}
 			
 #ifdef _DEBUG
@@ -692,9 +766,9 @@ int worker(void *ptr)
 			pUsernamePasswordAuthenticationResponse->status = 0xFF;
 			
 			if(tlsFlag == 0){
-				sen = sendData(clientSock, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE));
+				sen = sendData(clientSock, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE), tv_sec, tv_usec);
 			}else{
-				sen = sendDataTls(clientSsl, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE));
+				sen = sendDataTls(clientSock, clientSsl, pUsernamePasswordAuthenticationResponse, sizeof(USERNAME_PASSWORD_AUTHENTICATION_RESPONSE), tv_sec, tv_usec);
 			}
 #ifdef _DEBUG
 			printf("[I] Send selection response:%d bytes.\n", sen);
@@ -718,9 +792,9 @@ int worker(void *ptr)
 #endif
 	ZeroMemory(buffer, BUFSIZ+1);
 	if(tlsFlag == 0){
-		rec = recvData(clientSock, buffer, BUFSIZ);
+		rec = recvData(clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
 	}else{
-		rec = recvDataTls(clientSsl, buffer, BUFSIZ);
+		rec = recvDataTls(clientSock, clientSsl, buffer, BUFSIZ, tv_sec, tv_usec);
 	}
 	if(rec <= 0){
 #ifdef _DEBUG
@@ -752,9 +826,9 @@ int worker(void *ptr)
 		
 		// socks SOCKS_RESPONSE send error
 		if(tlsFlag == 0){
-			sen = sendSocksResponseIpv4(clientSock, 0x5, 0x8, 0x0, 0x1);
+			sen = sendSocksResponseIpv4(clientSock, 0x5, 0x8, 0x0, 0x1, tv_sec, tv_usec);
 		}else{
-			sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x8, 0x0, 0x1);
+			sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x8, 0x0, 0x1, tv_sec, tv_usec);
 		}
 		
 		if(reverseFlag == 0){	// Nomal mode
@@ -776,15 +850,15 @@ int worker(void *ptr)
 		// socks SOCKS_RESPONSE send error
 		if(atyp == 0x1 || atyp == 0x3){	// IPv4
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 			}
 		}else{	// IPv6
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
+				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
+				sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 			}
 		}
 		
@@ -837,9 +911,9 @@ int worker(void *ptr)
 					
 					// socks SOCKS_RESPONSE send error
 					if(tlsFlag == 0){
-						sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1);
+						sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1, tv_sec, tv_usec);
 					}else{
-						sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x5, 0x0, 0x1);
+						sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x5, 0x0, 0x1, tv_sec, tv_usec);
 					}
 					
 					if(reverseFlag == 0){	// Nomal mode
@@ -860,9 +934,9 @@ int worker(void *ptr)
 				
 				// socks SOCKS_RESPONSE send error
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x5, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x5, 0x0, 0x4, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -896,9 +970,9 @@ int worker(void *ptr)
 			
 			// socks SOCKS_RESPONSE send error
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x1, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -923,9 +997,9 @@ int worker(void *ptr)
 		
 		// socks SOCKS_RESPONSE send error
 		if(tlsFlag == 0){
-			sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1);
+			sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 		}else{
-			sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x1, 0x0, 0x1);
+			sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 		}
 		
 		if(reverseFlag == 0){	// Nomal mode
@@ -960,9 +1034,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1);
+					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x5, 0x0, 0x1);
+					sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x5, 0x0, 0x1, tv_sec, tv_usec);
 				}
 #ifdef _DEBUG
 				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -983,9 +1057,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x0, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x0, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x0, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x0, 0x0, 0x1, tv_sec, tv_usec);
 			}
 #ifdef _DEBUG
 			printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -998,9 +1072,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1017,9 +1091,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1035,9 +1109,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x1, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1066,9 +1140,9 @@ int worker(void *ptr)
 #endif
 					
 					if(tlsFlag == 0){
-						sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1);
+						sen = sendSocksResponseIpv4(clientSock, 0x5, 0x5, 0x0, 0x1, tv_sec, tv_usec);
 					}else{
-						sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x5, 0x0, 0x1);
+						sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x5, 0x0, 0x1, tv_sec, tv_usec);
 					}
 #ifdef _DEBUG
 					printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -1088,9 +1162,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x0, 0x0, 0x1);
+					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x0, 0x0, 0x1, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x0, 0x0, 0x1);
+					sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x0, 0x0, 0x1, tv_sec, tv_usec);
 				}
 #ifdef _DEBUG
 				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -1102,9 +1176,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
+					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
+					sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -1121,9 +1195,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1);
+					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x7, 0x0, 0x1);
+					sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x1, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -1139,9 +1213,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1);
+					sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x1, 0x0, 0x1);
+					sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -1170,9 +1244,9 @@ int worker(void *ptr)
 #endif
 					
 					if(tlsFlag == 0){
-						sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4);
+						sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4, tv_sec, tv_usec);
 					}else{
-						sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x5, 0x0, 0x4);
+						sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x5, 0x0, 0x4, tv_sec, tv_usec);
 					}
 #ifdef _DEBUG
 					printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -1193,9 +1267,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x0, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x0, 0x0, 0x4, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x0, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x0, 0x0, 0x4, tv_sec, tv_usec);
 				}
 #ifdef _DEBUG
 				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -1207,9 +1281,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -1226,9 +1300,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -1244,9 +1318,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x1, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x1, 0x0, 0x4, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x1, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x4, tv_sec, tv_usec);
 				}
 				
 				if(reverseFlag == 0){	// Nomal mode
@@ -1263,9 +1337,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1);
+				sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x1, 0x0, 0x1);
+				sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1294,9 +1368,9 @@ int worker(void *ptr)
 #endif
 				
 				if(tlsFlag == 0){
-					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4);
+					sen = sendSocksResponseIpv6(clientSock, 0x5, 0x5, 0x0, 0x4, tv_sec, tv_usec);
 				}else{
-					sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x5, 0x0, 0x4);
+					sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x5, 0x0, 0x4, tv_sec, tv_usec);
 				}
 #ifdef _DEBUG
 				printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -1317,9 +1391,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x0, 0x0, 0x4);
+				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x0, 0x0, 0x4, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x0, 0x0, 0x4);
+				sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x0, 0x0, 0x4, tv_sec, tv_usec);
 			}
 #ifdef _DEBUG
 			printf("[I] Socks Request:%d bytes, Socks Response:%d bytes.\n", rec, sen);
@@ -1331,9 +1405,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
+				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
+				sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1350,9 +1424,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4);
+				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x7, 0x0, 0x4);
+				sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x7, 0x0, 0x4, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1368,9 +1442,9 @@ int worker(void *ptr)
 #endif
 			
 			if(tlsFlag == 0){
-				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x1, 0x0, 0x4);
+				sen = sendSocksResponseIpv6(clientSock, 0x5, 0x1, 0x0, 0x4, tv_sec, tv_usec);
 			}else{
-				sen = sendSocksResponseIpv6Tls(clientSsl, 0x5, 0x1, 0x0, 0x4);
+				sen = sendSocksResponseIpv6Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x4, tv_sec, tv_usec);
 			}
 			
 			if(reverseFlag == 0){	// Nomal mode
@@ -1387,9 +1461,9 @@ int worker(void *ptr)
 #endif
 		
 		if(tlsFlag == 0){
-			sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1);
+			sen = sendSocksResponseIpv4(clientSock, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 		}else{
-			sen = sendSocksResponseIpv4Tls(clientSsl, 0x5, 0x1, 0x0, 0x1);
+			sen = sendSocksResponseIpv4Tls(clientSock, clientSsl, 0x5, 0x1, 0x0, 0x1, tv_sec, tv_usec);
 		}
 		
 		if(reverseFlag == 0){	// Nomal mode
@@ -1438,9 +1512,9 @@ int worker(void *ptr)
 	printf("[I] Forwarder.\n");
 #endif
 	if(tlsFlag == 0){
-		err = forwarder(clientSock, targetSock);
+		err = forwarder(clientSock, targetSock, forwarder_tv_sec, forwarder_tv_usec);
 	}else{
-		err = forwarderTls(clientSock, targetSock, clientSsl);
+		err = forwarderTls(clientSock, targetSock, clientSsl, forwarder_tv_sec, forwarder_tv_usec);
 		if(reverseFlag == 1 && err == -2){
 			closesocket(targetSock);
 			return -2;
@@ -1494,20 +1568,20 @@ void workerThread(void *ptr)
 void usage(char *filename)
 {
 	printf("Normal mode  : client -> server\n");
-	printf("usage        : %s -h listen_ip -p listen_port [-s (socks5 over tls)] [-t tv_sec(forwarder timeout sec)] [-u tv_usec(forwarder timeout microsec)]\n", filename);
+	printf("usage        : %s -h listen_ip -p listen_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]\n", filename);
 	printf("example      : %s -h 192.168.0.10 -p 9050\n", filename);
 	printf("             : %s -h localhost -p 9050 -s\n", filename);
-	printf("             : %s -h ::1 -p 9050 -s -t 1\n", filename);
-	printf("             : %s -h 192.168.0.10 -p 9050 -s -t 0 -u 500000\n", filename);
-	printf("             : %s -h fe80::xxxx:xxxx:xxxx:xxxx%%14 -p 9050 -s -t 3\n", filename);
+	printf("             : %s -h ::1 -p 9050 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -h 192.168.0.10 -p 9050 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -h fe80::xxxx:xxxx:xxxx:xxxx%%14 -p 9050 -s -A 3 -B 0 -C 3 -D 0\n", filename);
 	printf("or\n");
 	printf("Reverse mode : client <- server\n");
-	printf("usage        : %s -r -H socks5client_ip -P socks5client_port [-s (socks5 over tls)] [-t tv_sec(forwarder timeout sec)] [-u tv_usec(forwarder timeout microsec)]\n", filename);
+	printf("usage        : %s -r -H socks5client_ip -P socks5client_port [-s (socks5 over tls)] [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]\n", filename);
 	printf("example      : %s -r -H 192.168.0.5 -P 1234\n", filename);
 	printf("             : %s -r -H localhost -P 1234 -s\n", filename);
-	printf("             : %s -r -H ::1 -P 1234 -s -t 1\n", filename);
-	printf("             : %s -r -H 192.168.0.5 -P 1234 -s -t 0 -u 500000\n", filename);
-	printf("             : %s -r -H fe80::xxxx:xxxx:xxxx:xxxx%%14 -P 1234 -s -t 3\n", filename);
+	printf("             : %s -r -H ::1 -P 1234 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -r -H 192.168.0.5 -P 1234 -s -A 3 -B 0 -C 3 -D 0\n", filename);
+	printf("             : %s -r -H fe80::xxxx:xxxx:xxxx:xxxx%%14 -P 1234 -s -A 3 -B 0 -C 3 -D 0\n", filename);
 }
 
 int getopt(int argc, char **argv, char *optstring)
@@ -1553,7 +1627,11 @@ int main(int argc, char **argv)
 {
 
 	int opt;
-	char optstring[] = "rh:p:H:P:st:u:";
+	char optstring[] = "rh:p:H:P:sA:B:C:D:";
+	long tv_sec = 3;	// recv send
+	long tv_usec = 0;	// recv send
+	long forwarder_tv_sec = 3;
+	long forwarder_tv_usec = 0;
 
 	while((opt=getopt(argc, argv, optstring)) > 0){
 		switch(opt){
@@ -1580,15 +1658,23 @@ int main(int argc, char **argv)
 		case 's':
 			tlsFlag = 1;
 			break;
-			
-		case 't':
+
+		case 'A':
 			tv_sec = atol(optarg);
 			break;
-			
-		case 'u':
+
+		case 'B':
 			tv_usec = atol(optarg);
 			break;
-			
+
+		case 'C':
+			forwarder_tv_sec = atol(optarg);
+			break;
+
+		case 'D':
+			forwarder_tv_usec = atol(optarg);
+			break;
+
 		default:
 			usage(argv[0]);
 			exit(1);
@@ -1598,6 +1684,22 @@ int main(int argc, char **argv)
 	if(reverseFlag == 0 && socks5ServerIp == NULL || reverseFlag == 0 && socks5ServerPort == NULL || reverseFlag == 1 && socks5ClientIp == NULL || reverseFlag == 1 && socks5ClientPort == NULL){
 		usage(argv[0]);
 		exit(1);
+	}
+
+	if(tv_sec < 0 || tv_sec > 10 || tv_usec < 0 || tv_usec > 1000000){
+		tv_sec = 3;
+		tv_usec = 0;
+	}else if(tv_sec == 0 && tv_usec == 0){
+		tv_sec = 3;
+		tv_usec = 0;
+	}
+
+	if(forwarder_tv_sec < 0 || forwarder_tv_sec > 3600 || forwarder_tv_usec < 0 || forwarder_tv_usec > 1000000){
+		forwarder_tv_sec = 3;
+		forwarder_tv_usec = 0;
+	}else if(forwarder_tv_sec == 0 && forwarder_tv_usec == 0){
+		forwarder_tv_sec = 3;
+		forwarder_tv_usec = 0;
 	}
 
 	WSADATA wsaData;
@@ -1680,7 +1782,8 @@ int main(int argc, char **argv)
 #endif
 		}
 #ifdef _DEBUG
-		printf("[I] Forwarder timeout:%ld sec %ld microsec.\n", tv_sec, tv_usec);
+		printf("[I] Timeout recv/send tv_sec(0-10 sec):%ld sec recv/send tv_usec(0-1000000 microsec):%ld microsec.\n", tv_sec, tv_usec);
+		printf("[I] Timeout forwarder tv_sec(0-3600 sec):%ld sec forwarder tv_usec(0-1000000 microsec):%ld microsec.\n", forwarder_tv_sec, forwarder_tv_usec);
 #endif
 
 		colon = strstr(serverDomainname, ":");	// check ipv6 address
@@ -1770,6 +1873,10 @@ int main(int argc, char **argv)
 				pParam = (pPARAM)calloc(1, sizeof(PARAM));
 				pParam->clientSock = clientSock;
 				pParam->clientSsl = clientSsl;
+				pParam->tv_sec = tv_sec;
+				pParam->tv_usec = tv_usec;
+				pParam->forwarder_tv_sec = forwarder_tv_sec;
+				pParam->forwarder_tv_usec = forwarder_tv_usec;
 
 				_beginthread(workerThread, 0, pParam);
 			}
@@ -1825,6 +1932,10 @@ int main(int argc, char **argv)
 				pParam = (pPARAM)calloc(1, sizeof(PARAM));
 				pParam->clientSock = clientSock;
 				pParam->clientSsl = clientSsl;
+				pParam->tv_sec = tv_sec;
+				pParam->tv_usec = tv_usec;
+				pParam->forwarder_tv_sec = forwarder_tv_sec;
+				pParam->forwarder_tv_usec = forwarder_tv_usec;
 
 				_beginthread(workerThread, 0, pParam);
 			}
@@ -1846,7 +1957,8 @@ int main(int argc, char **argv)
 #endif
 		}
 #ifdef _DEBUG
-		printf("[I] Forwarder timeout:%ld sec %ld microsec.\n", tv_sec, tv_usec);
+		printf("[I] Timeout recv/send tv_sec(0-10 sec):%ld sec recv/send tv_usec(0-1000000 microsec):%ld microsec.\n", tv_sec, tv_usec);
+		printf("[I] Timeout forwarder tv_sec(0-3600 sec):%ld sec forwarder tv_usec(0-1000000 microsec):%ld microsec.\n", forwarder_tv_sec, forwarder_tv_usec);
 #endif
 
 		colon = strstr(clientDomainname, ":");	// check ipv6 address
@@ -2110,6 +2222,10 @@ int main(int argc, char **argv)
 			pParam = (pPARAM)calloc(1, sizeof(PARAM));
 			pParam->clientSock = clientSock;
 			pParam->clientSsl = clientSsl;
+			pParam->tv_sec = tv_sec;
+			pParam->tv_usec = tv_usec;
+			pParam->forwarder_tv_sec = forwarder_tv_sec;
+			pParam->forwarder_tv_usec = forwarder_tv_usec;
 			
 			err = worker(pParam);
 			if(err == -2){
