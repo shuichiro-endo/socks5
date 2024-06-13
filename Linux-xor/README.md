@@ -58,3 +58,4 @@ example      : ./client -r -h 0.0.0.0 -p 9050 -H 0.0.0.0 -P 1234
              : ./client -r -h fe80::xxxx:xxxx:xxxx:xxxx%eth0 -p 9050 -H fe80::xxxx:xxxx:xxxx:xxxx%eth0 -P 1234 -x -A 3 -B 0 -C 3 -D 0
 
 ```
+Note: In the reverse mode, the number of concurrent connections allowed is one. If the number of concurrent connections is multiple, this tool doesn't work.

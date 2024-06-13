@@ -87,6 +87,7 @@ example      : client.exe -r -h 192.168.0.5 -p 9050 -H 192.168.0.5 -P 1234
              : client.exe -r -h 192.168.0.5 -p 9050 -H 192.168.0.5 -P 1234 -s -A 3 -B 0 -C 3 -D 0
              : client.exe -r -h fe80::xxxx:xxxx:xxxx:xxxx%14 -p 9050 -H fe80::xxxx:xxxx:xxxx:xxxx%14 -P 1234 -s -A 3 -B 0 -C 3 -D 0
 ```
+Note: In the reverse mode, the number of concurrent connections allowed is one. If the number of concurrent connections is multiple, this tool doesn't work.
 
 ### Normal mode (client -> server)
 1. run my server
