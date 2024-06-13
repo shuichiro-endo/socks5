@@ -53,6 +53,7 @@ int recvData(SOCKET socket, void *buffer, int length, long tv_sec, long tv_usec)
 	int err = 0;
 	fd_set readfds;
 	timeval tv;
+	ZeroMemory(buffer, length+1);
 
 	while(1){
 		FD_ZERO(&readfds);
@@ -95,6 +96,7 @@ int recvDataTls(SOCKET socket, SSL *ssl ,void *buffer, int length, long tv_sec, 
 	int err = 0;
 	fd_set readfds;
 	timeval tv;
+	ZeroMemory(buffer, length+1);
 
 	while(1){
 		FD_ZERO(&readfds);
