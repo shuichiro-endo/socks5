@@ -1,4 +1,4 @@
-# socks5
+# socks5 xor
 
 socks5 server and client (Windows)
 
