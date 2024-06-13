@@ -17,7 +17,7 @@ git clone https://github.com/shuichiro-endo/socks5.git
 
 2. build
 ```
-cd socks5/Linux
+cd socks5/Linux-tls-openssl
 make
 ```
 
@@ -109,7 +109,7 @@ curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
     ```
     2. build
     ```
-    cd socks5/Linux
+    cd socks5/Linux-tls-openssl
     make
     ```
 
@@ -154,14 +154,14 @@ curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
     ```
     4. build
     ```
-    cd socks5/Linux
+    cd socks5/Linux-tls-openssl
     make
     ```
 
 - client
-    1. copy server.crt file to socks5/Linux directory
+    1. copy server.crt file to socks5/Linux-tls-openssl directory
     ```
-    cp server.crt socks5/Linux/server.crt
+    cp server.crt socks5/Linux-tls-openssl/server.crt
     ```
     2. modify client.c file (if you change the certificate filename or directory path)
     ```
@@ -170,7 +170,7 @@ curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
     ```
     3. build (if you change the certificate filename or directory path)
     ```
-    cd socks5/Linux
+    cd socks5/Linux-tls-openssl
     make
     ```
 
@@ -195,7 +195,7 @@ curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
     ```
     4. build
     ```
-    cd socks5/Linux
+    cd socks5/Linux-tls-openssl
     make
     ```
 
