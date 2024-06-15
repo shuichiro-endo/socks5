@@ -657,7 +657,7 @@ int worker(void *ptr)
 	pSELECTION_REQUEST pSelectionRequest = (pSELECTION_REQUEST)buffer;
 	unsigned char method = 0xFF;
 	for(int i=0; i<pSelectionRequest->nmethods; i++){
-		if(pSelectionRequest->methods[i] == 0x0 || pSelectionRequest->methods[i] == 0x2){	// NO AUTHENTICATION REQUIRED or USERNAME/PASSWORD
+		if(pSelectionRequest->methods[i] == authenticationMethod){	// NO AUTHENTICATION REQUIRED or USERNAME/PASSWORD
 			method = pSelectionRequest->methods[i];
 			break;
 		}
