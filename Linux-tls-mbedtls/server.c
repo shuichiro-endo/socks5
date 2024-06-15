@@ -47,9 +47,9 @@ char password[256] = "supersecretpassword";
 
 // ciphersuite	/usr/include/mbedtls/ssl_ciphersuites.h
 int ciphersuites[] = {
-//MBEDTLS_TLS1_3_AES_256_GCM_SHA384,
-//MBEDTLS_TLS1_3_CHACHA20_POLY1305_SHA256,
-//MBEDTLS_TLS1_3_AES_128_GCM_SHA256,
+//MBEDTLS_TLS1_3_AES_256_GCM_SHA384,		// mbedtls v3.5.2
+//MBEDTLS_TLS1_3_CHACHA20_POLY1305_SHA256,	// mbedtls v3.5.2
+//MBEDTLS_TLS1_3_AES_128_GCM_SHA256,		// mbedtls v3.5.2
 MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 MBEDTLS_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -602,8 +602,8 @@ int worker(void *ptr)
 			return -2;
 		}
 
-//		ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0, mbedtls_ctr_drbg_random, &ctrDrbgCtx);
-		ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0);
+//		ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0, mbedtls_ctr_drbg_random, &ctrDrbgCtx);	// mbedtls v3.5.2
+		ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0);	// mbedtls v2.28.8
 		if(ret != 0){
 #ifdef _DEBUG
 			printf("[E] mbedtls_pk_parse_key error:%d\n", ret);
@@ -2113,8 +2113,8 @@ int main(int argc, char **argv)
 				return -2;
 			}
 
-//			ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0, mbedtls_ctr_drbg_random, &ctrDrbgCtx);
-			ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0);
+//			ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0, mbedtls_ctr_drbg_random, &ctrDrbgCtx);	// mbedtls v3.5.2
+			ret = mbedtls_pk_parse_key(&serverKey, (const unsigned char *)serverPrivateKey, strlen(serverPrivateKey)+1, NULL, 0);	// mbedtls v2.28.8
 			if(ret != 0){
 #ifdef _DEBUG
 				printf("[E] mbedtls_pk_parse_key error:%d\n", ret);
