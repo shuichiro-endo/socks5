@@ -1,0 +1,15 @@
+/*
+ * Title:  socks5 server certificate header (Linux)
+ * Author: Shuichiro Endo
+ */
+
+char serverCertificate[] = "-----BEGIN CERTIFICATE-----\n"\
+"MIIBaTCCAQ+gAwIBAgIBATAKBggqhkjOPQQDAjARMQ8wDQYDVQQDDAZzb2NrczUw\n"\
+"IBcNMjQwMTAxMDAwMDAwWhgPMjEyMzEyMzEyMzU5NTlaMBExDzANBgNVBAMMBnNv\n"\
+"Y2tzNTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABDTN3s+H8uuv99q8cA8wuFUL\n"\
+"mtur9/XDdPn2CN9RydWA4DJbxgBm31U1mfbZf2CANXsXxjLIKJxiFQBrmNYSvK2j\n"\
+"VjBUMBIGA1UdEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFPRIHhwlFBeGzArKxEiw\n"\
+"/rd8tbjJMB8GA1UdIwQYMBaAFPRIHhwlFBeGzArKxEiw/rd8tbjJMAoGCCqGSM49\n"\
+"BAMCA0gAMEUCIQDRtk+VhqPgOiCR/f+9uoTvDZ8DPxPOHPjgpGDQ//Ah+gIgaPAM\n"\
+"RbKJncieOJskYWEUwTB3EkIeTQJg1PIoyFTOCpc=\n"\
+"-----END CERTIFICATE-----\n";
