@@ -29,7 +29,7 @@
 #pragma comment(lib,"Crypt32.lib")	// Crypt32 Library
 #pragma comment(lib,"Ncrypt.lib")	// Ncrypt Library
 
-#define BUFFER_SIZE 8096
+#define BUFFER_SIZE 81920
 #define CERT_NAME_MAX_SIZE 1024
 
 int optstringIndex = 0;
@@ -117,16 +117,18 @@ int encryptMessage(CtxtHandle *pClientContextHandle, SecPkgContext_StreamSizes s
 	return encryptMessageLength;
 }
 
-
-int decryptMessage(CtxtHandle *pClientContextHandle, SecPkgContext_StreamSizes streamSizes, char *input, int inputLength, char *output, int outputLength)
+/*
+ * Reference:
+ * https://stackoverflow.com/questions/61197818/how-to-detect-termination-character-in-schannel-based-https-client
+ */
+int decryptMessage(CtxtHandle *pClientContextHandle, SecPkgContext_StreamSizes streamSizes, char *input, int *inputLength, char *output, int outputLength, int *decryptMessageLength)
 {
 	int messageLength = 0;
 	SecBuffer secBuffer[4] = {0};
 	SecBufferDesc secBufferDesc = {0};
 	SECURITY_STATUS status;
-	int decryptMessageLength = 0;
 
-	messageLength = inputLength - streamSizes.cbHeader - streamSizes.cbTrailer;
+	messageLength = *inputLength - streamSizes.cbHeader - streamSizes.cbTrailer;
 	if(messageLength > (int)streamSizes.cbMaximumMessage){
 #ifdef _DEBUG
 		printf("[E] message length is too long.\n");
@@ -143,7 +145,7 @@ int decryptMessage(CtxtHandle *pClientContextHandle, SecPkgContext_StreamSizes s
 
 	secBuffer[0].BufferType = SECBUFFER_DATA;
 	secBuffer[0].pvBuffer = input;
-	secBuffer[0].cbBuffer = inputLength;
+	secBuffer[0].cbBuffer = *inputLength;
 	secBuffer[1].BufferType = SECBUFFER_EMPTY;
 	secBuffer[1].pvBuffer = NULL;
 	secBuffer[1].cbBuffer = 0;
@@ -158,28 +160,59 @@ int decryptMessage(CtxtHandle *pClientContextHandle, SecPkgContext_StreamSizes s
 	secBufferDesc.cBuffers = 4;
 	secBufferDesc.pBuffers = secBuffer;
 
-	status = DecryptMessage(pClientContextHandle, &secBufferDesc, 0, NULL);
-	if(status == SEC_E_DECRYPT_FAILURE){
-		printf("[I] SEC_E_DECRYPT_FAILURE\n");
-		return -2;
-	}else if(status != SEC_E_OK){
+	while(1){
+		status = DecryptMessage(pClientContextHandle, &secBufferDesc, 0, NULL);
+		if(status == SEC_E_INCOMPLETE_MESSAGE){
 #ifdef _DEBUG
-		printf("[E] DecryptMessage error:%x\n", status);
+			printf("[I] SEC_E_INCOMPLETE_MESSAGE\n");
 #endif
-		return -1;
+			return 1;
+		}else if(status == SEC_E_DECRYPT_FAILURE){
+#ifdef _DEBUG
+			printf("[I] SEC_E_DECRYPT_FAILURE\n");
+#endif
+			return 2;
+		}else if(status != SEC_E_OK){
+#ifdef _DEBUG
+			printf("[E] DecryptMessage error:%x\n", status);
+#endif
+			return -1;
+		}
+
+		if(secBuffer[1].BufferType == SECBUFFER_DATA){
+			memcpy(output + *decryptMessageLength, secBuffer[1].pvBuffer, secBuffer[1].cbBuffer);
+			*decryptMessageLength += secBuffer[1].cbBuffer;
+
+			if(secBuffer[3].cbBuffer != 0){
+				memcpy(input, secBuffer[3].pvBuffer, secBuffer[3].cbBuffer);
+				*inputLength = secBuffer[3].cbBuffer;
+
+				secBuffer[0].BufferType = SECBUFFER_DATA;
+				secBuffer[0].pvBuffer = input;
+				secBuffer[0].cbBuffer = *inputLength;
+				secBuffer[1].BufferType = SECBUFFER_EMPTY;
+				secBuffer[1].pvBuffer = NULL;
+				secBuffer[1].cbBuffer = 0;
+				secBuffer[2].BufferType = SECBUFFER_EMPTY;
+				secBuffer[2].pvBuffer = NULL;
+				secBuffer[2].cbBuffer = 0;
+				secBuffer[3].BufferType = SECBUFFER_EMPTY;
+				secBuffer[3].pvBuffer = NULL;
+				secBuffer[3].cbBuffer = 0;
+
+				continue;
+			}else{
+				break;
+			}
+		}else{
+#ifdef _DEBUG
+			printf("[E] secBuffer[1].BufferType error:%x\n", secBuffer[1].BufferType);
+#endif
+			return -1;
+		}
 	}
 
-	if(secBuffer[1].BufferType == SECBUFFER_DATA){
-		memcpy(output, secBuffer[1].pvBuffer, secBuffer[1].cbBuffer);
-		decryptMessageLength = secBuffer[1].cbBuffer;
-	}else{
-#ifdef _DEBUG
-		printf("[E] secBuffer[1].BufferType error:%x\n", secBuffer[1].BufferType);
-#endif
-		return -1;
-	}
-
-	return decryptMessageLength;
+	return 0;
 }
 
 
@@ -229,8 +262,8 @@ int recvData(SOCKET socket, void *buffer, int length, long tv_sec, long tv_usec)
 int recvDataTls(SOCKET socket, CtxtHandle *pContextHandle, SecPkgContext_StreamSizes streamSizes, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int rec = 0;
-	int rec2 = 0;
 	int tmprec = 0;
+	int ret = 0;
 	int err = 0;
 	fd_set readfds;
 	timeval tv;
@@ -239,7 +272,7 @@ int recvDataTls(SOCKET socket, CtxtHandle *pContextHandle, SecPkgContext_StreamS
 	ZeroMemory(buffer, length+1);
 	ZeroMemory(buffer2, BUFFER_SIZE+1);
 	ZeroMemory(tmp, BUFFER_SIZE+1);
-	int count = 0;
+	int decryptMessageLength = 0;
 
 	while(1){
 		FD_ZERO(&readfds);
@@ -266,30 +299,31 @@ int recvDataTls(SOCKET socket, CtxtHandle *pContextHandle, SecPkgContext_StreamS
 				printf("[E] recv error:%d.\n", err);
 #endif
 				return -1;
+			}else if(rec == 0){
+				decryptMessageLength = 0;
+				break;
 			}else{
 				if(tmprec + rec <= BUFFER_SIZE){
 					memcpy(tmp+tmprec, buffer, rec);
 					tmprec += rec;
+					ZeroMemory(buffer, length+1);
 
-					rec2 = decryptMessage(pContextHandle, streamSizes, (char *)tmp, tmprec, buffer2, BUFFER_SIZE);
-					if(rec2 == -2){
-						if(count > 1){
-#ifdef _DEBUG
-							printf("[E] decryptMessage error\n");
-#endif
-							return -2;
-						}
-						count++;
+					ret = decryptMessage(pContextHandle, streamSizes, (char *)tmp, &tmprec, buffer2, BUFFER_SIZE, &decryptMessageLength);
+					if(ret == 1){	// SEC_E_INCOMPLETE_MESSAGE
 						continue;
-					}else if(rec2 < 0){
+					}else if(ret == 2){	// SEC_E_DECRYPT_FAILURE
+						tmprec = 0;
+						ZeroMemory(tmp, BUFFER_SIZE+1);
+						continue;
+					}else if(ret < 0){
 #ifdef _DEBUG
 						printf("[E] decryptMessage error\n");
 #endif
 						return -2;
+					}else{
+						memcpy(buffer, buffer2, decryptMessageLength);
+						break;
 					}
-
-					memcpy(buffer, buffer2, rec2);
-					break;
 				}else{
 #ifdef _DEBUG
 						printf("[E] received data size has exceeded the maximum value\n");
@@ -300,7 +334,7 @@ int recvDataTls(SOCKET socket, CtxtHandle *pContextHandle, SecPkgContext_StreamS
 		}
 	}
 
-	return rec2;
+	return decryptMessageLength;
 }
 
 
