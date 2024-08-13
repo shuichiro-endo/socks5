@@ -1,0 +1,92 @@
+//
+// Title:  socks5server.idl (Windows DCOM)
+// Author: Shuichiro Endo
+//
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+// ISocks5Server interface
+[
+    object,
+    uuid(1fdf77ba-5e52-4721-be81-a3030e8c30e4),
+    version(1.0),
+    pointer_default(unique)
+]
+interface ISocks5Server:IUnknown
+{
+    HRESULT SelectionRequestResponse
+    (
+        [in] ULONG ulInputLength,
+        [in, size_is(ulInputLength)] BYTE *pbInputBuffer,
+        [out] ULONG *pulOutputLength,
+        [out, size_is(, *pulOutputLength)] BYTE **pbOutputBuffer
+    );
+
+    HRESULT UsernamePasswordAuthenticationRequestResponse
+    (
+        [in] ULONG ulInputLength,
+        [in, size_is(ulInputLength)] BYTE *pbInputBuffer,
+        [out] ULONG *pulOutputLength,
+        [out, size_is(, *pulOutputLength)] BYTE **pbOutputBuffer
+    );
+
+    HRESULT Socks5RequestResponse
+    (
+        [in] ULONG ulInputLength,
+        [in, size_is(ulInputLength)] BYTE *pbInputBuffer,
+        [out] ULONG *pulOutputLength,
+        [out, size_is(, *pulOutputLength)] BYTE **pbOutputBuffer
+    );
+
+    HRESULT SendForwarderData
+    (
+        [in] ULONG ulInputLength,
+        [in, size_is(ulInputLength)] BYTE *pbInputBuffer,
+        [in] LONG ltv_sec,
+        [in] LONG ltv_usec
+    );
+
+    HRESULT RecvForwarderData
+    (
+        [out] ULONG *pulOutputLength,
+        [out, size_is(, *pulOutputLength)] BYTE **pbOutputBuffer,
+        [in] LONG ltv_sec,
+        [in] LONG ltv_usec
+    );
+
+    HRESULT Close();
+}
+
+
+[
+    uuid(70d2c8cf-f464-414a-84be-95fecc01c132)
+]
+coclass CSocks5Server
+{
+    [default] interface ISocks5Server;
+}
+
+cpp_quote("DEFINE_GUID(CLSID_Socks5Server, 0x70d2c8cf, 0xf464, 0x414a, 0x84, 0xbe, 0x95, 0xfe, 0xcc, 0x01, 0xc1, 0x32);")
+
+
+/*
+// Type library
+[
+    uuid(9917243b-9836-41ef-8f9b-e5e2880991c6),
+    version(1.0)
+]
+library Socks5ServerTypeLib
+{
+    importlib("stdole32.tlb");
+
+    // CLSID
+    [
+        uuid(70d2c8cf-f464-414a-84be-95fecc01c132)
+    ]
+    coclass CSocks5Server
+    {
+        [default] interface ISocks5Server;
+    };
+};
+*/
