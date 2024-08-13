@@ -89,7 +89,7 @@ public:
 
 
 CSocks5Server::CSocks5Server()
-    :   m_ulRefCount(1),
+    :   m_ulRefCount(0),
         m_ulClientCookie(0),
         m_dwSocks5State(SOCKS5_START)
 {
@@ -950,15 +950,15 @@ private:
 
 
 CSocks5ServerFactory::CSocks5ServerFactory()
+    : m_lRefCount(0)
 {
-    m_lRefCount = 0;
-    ComponentAddRef();
+
 }
 
 
 CSocks5ServerFactory::~CSocks5ServerFactory()
 {
-    ComponentRelease();
+
 }
 
 
@@ -983,13 +983,13 @@ HRESULT STDMETHODCALLTYPE CSocks5ServerFactory::QueryInterface(REFIID riid, void
 
 ULONG STDMETHODCALLTYPE CSocks5ServerFactory::AddRef()
 {
-    return 1;
+    return ComponentAddRef();
 }
 
 
 ULONG STDMETHODCALLTYPE CSocks5ServerFactory::Release()
 {
-    return 1;
+    return ComponentRelease();
 }
 
 
@@ -1012,8 +1012,6 @@ HRESULT STDMETHODCALLTYPE CSocks5ServerFactory::CreateInstance(IUnknown *pUnkOut
     if(FAILED(hr)){
         delete pObject;
     }
-
-//    pObject->Release();
 
     return hr;
 }
@@ -1188,13 +1186,11 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR lpszCmdLine, int 
     }else{
         g_hExitEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
         if(g_hExitEvent == NULL){
-//            MessageBox(NULL, "[E] CreateEvent error", "Socks5Server", MB_ICONERROR);
             return 1;
         }
 
         hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
         if(FAILED(hr)){
-//            MessageBox(NULL, "[E] CoInitialize error", "Socks5Server", MB_ICONERROR);
             return 1;
         }
 
