@@ -1194,6 +1194,11 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR lpszCmdLine, int 
             return 1;
         }
 
+        hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_NONE, RPC_C_IMP_LEVEL_ANONYMOUS, NULL, EOAC_NONE, NULL);
+        if(FAILED(hr)){
+            return 1;
+        }
+
         hr = CoRegisterClassObject(CLSID_Socks5Server, static_cast<IClassFactory *>(&factory), CLSCTX_LOCAL_SERVER|CLSCTX_REMOTE_SERVER, REGCLS_MULTIPLEUSE|REGCLS_SUSPENDED, &dwRegister);
         if(FAILED(hr)){
             CoUninitialize();

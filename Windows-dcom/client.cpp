@@ -505,12 +505,21 @@ int worker(void *ptr)
 #endif
 	CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-/*
+
 #ifdef _DEBUG
 	printf("[I] CoInitializeSecurity\n");
 #endif
-	hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL);
-*/
+	hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_NONE, RPC_C_IMP_LEVEL_ANONYMOUS, NULL, EOAC_NONE, NULL);
+	if(FAILED(hr)){
+#ifdef _DEBUG
+		printf("[E] CoInitializeSecurity error:0x%x\n", hr);
+#endif
+		CoUninitialize();
+		free(pbInputBuffer);
+		closesocket(clientSock);
+		return 1;
+	}
+
 
 #ifdef _DEBUG
 	printf("[I] CoCreateInstanceEx\n");
