@@ -8,7 +8,7 @@ socks5 server and client (Windows DCOM)
 > Use only for testing purposes.
 
 ## Build
-### Build dependencies
+### Install dependencies
 - visual studio community (Desktop development with C++)
     1. install Desktop development with C++
 
