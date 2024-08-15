@@ -2,11 +2,10 @@
 
 socks5 server and client (Windows DCOM)
 
-[!CAUTION]
-
-By default, remote access of DCOM is not allowed.
-
-Use only for testing purposes.
+> [!CAUTION]
+> By default, remote access of DCOM is not allowed.
+> 
+> Use only for testing purposes.
 
 ## Build
 ### Build dependencies
@@ -61,13 +60,12 @@ register_proxystub.bat
 ```
 
 ### Set up DCOM
-[!CAUTION]
-
-By default, remote access of DCOM is not allowed.
-
-The following settings are dangerous.
-
-Use only for testing purposes.
+> [!CAUTION]
+> By default, remote access of DCOM is not allowed.
+> 
+> The following settings are dangerous.
+> 
+> Use only for testing purposes.
 - server (e.g. Windows Server 2022)
     1. run dcomcnfg (administrator authorization is required)
     ![](./imgs/dcomcnfg/01.jpg)
