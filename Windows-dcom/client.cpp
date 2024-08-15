@@ -501,27 +501,6 @@ int worker(void *ptr)
 
 
 #ifdef _DEBUG
-	printf("[I] CoInitializeEx\n");
-#endif
-	CoInitializeEx(NULL, COINIT_MULTITHREADED);
-
-
-#ifdef _DEBUG
-	printf("[I] CoInitializeSecurity\n");
-#endif
-	hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_NONE, RPC_C_IMP_LEVEL_ANONYMOUS, NULL, EOAC_NONE, NULL);
-	if(FAILED(hr)){
-#ifdef _DEBUG
-		printf("[E] CoInitializeSecurity error:0x%x\n", hr);
-#endif
-		CoUninitialize();
-		free(pbInputBuffer);
-		closesocket(clientSock);
-		return 1;
-	}
-
-
-#ifdef _DEBUG
 	printf("[I] CoCreateInstanceEx\n");
 #endif
 	hr = CoCreateInstanceEx(CLSID_Socks5Server, NULL, CLSCTX_REMOTE_SERVER, &csi, 1, mqi);
@@ -529,7 +508,6 @@ int worker(void *ptr)
 #ifdef _DEBUG
 		printf("[E] CoCreateInstanceEx error:0x%x\n", hr);
 #endif
-		CoUninitialize();
 		free(pbInputBuffer);
 		closesocket(clientSock);
 		return 1;
@@ -549,7 +527,6 @@ int worker(void *ptr)
 #endif
 		hr = pSocks5Server->Close();
 		pSocks5Server->Release();
-		CoUninitialize();
 		free(pbInputBuffer);
 		closesocket(clientSock);
 		return -1;
@@ -572,7 +549,6 @@ int worker(void *ptr)
 #endif
 		hr = pSocks5Server->Close();
 		pSocks5Server->Release();
-		CoUninitialize();
 		free(pbInputBuffer);
 		closesocket(clientSock);
 		return 1;
@@ -608,7 +584,6 @@ int worker(void *ptr)
 #endif
 			hr = pSocks5Server->Close();
 			pSocks5Server->Release();
-			CoUninitialize();
 			free(pbInputBuffer);
 			closesocket(clientSock);
 			return -1;
@@ -631,7 +606,6 @@ int worker(void *ptr)
 #endif
 			hr = pSocks5Server->Close();
 			pSocks5Server->Release();
-			CoUninitialize();
 			free(pbInputBuffer);
 			closesocket(clientSock);
 			return 1;
@@ -661,7 +635,6 @@ int worker(void *ptr)
 #endif
 		hr = pSocks5Server->Close();
 		pSocks5Server->Release();
-		CoUninitialize();
 		free(pbInputBuffer);
 		closesocket(clientSock);
 		return 1;
@@ -684,7 +657,6 @@ int worker(void *ptr)
 #endif
 		hr = pSocks5Server->Close();
 		pSocks5Server->Release();
-		CoUninitialize();
 		free(pbInputBuffer);
 		closesocket(clientSock);
 		return 1;
@@ -713,7 +685,6 @@ int worker(void *ptr)
 #endif
 		hr = pSocks5Server->Close();
 		pSocks5Server->Release();
-		CoUninitialize();
 		free(pbInputBuffer);
 		closesocket(clientSock);
 		return 1;
@@ -732,7 +703,6 @@ int worker(void *ptr)
 #endif
 	hr = pSocks5Server->Close();
 	pSocks5Server->Release();
-	CoUninitialize();
 	free(pbInputBuffer);
 	closesocket(clientSock);
 	return 0;
@@ -911,12 +881,33 @@ int main(int argc, char** argv)
 	int ret = 0;
 	int err = 0;
 
+	HRESULT hr;
+
+
 	err = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if(err != 0){
 #ifdef _DEBUG
 		printf("[E] WSAStartup error:%d.\n", err);
 #endif
 		return -1;
+	}
+
+#ifdef _DEBUG
+	printf("[I] CoInitializeEx\n");
+#endif
+	CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+#ifdef _DEBUG
+	printf("[I] CoInitializeSecurity\n");
+#endif
+	hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_NONE, RPC_C_IMP_LEVEL_ANONYMOUS, NULL, EOAC_NONE, NULL);
+	if(FAILED(hr)){
+#ifdef _DEBUG
+		printf("[E] CoInitializeSecurity error:0x%x\n", hr);
+#endif
+		CoUninitialize();
+		WSACleanup();
+		return 1;
 	}
 
 #ifdef _DEBUG
@@ -933,6 +924,8 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 				printf("[E] Cannot resolv the domain name:%s\n", serverDomainname);
 #endif
+				CoUninitialize();
+				WSACleanup();
 				return -1;
 			}
 		}
@@ -942,6 +935,8 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 			printf("[E] Cannot resolv the domain name:%s\n", serverDomainname);
 #endif
+			CoUninitialize();
+			WSACleanup();
 			return -1;
 		}
 	}
@@ -966,6 +961,8 @@ int main(int argc, char** argv)
 		printf("[E] Not implemented\n");
 #endif
 		freeaddrinfo(serverHost);
+		CoUninitialize();
+		WSACleanup();
 		return -1;
 	}
 
@@ -975,6 +972,7 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 			printf("[E] Socket error:%d.\n", WSAGetLastError());
 #endif
+			CoUninitialize();
 			WSACleanup();
 			return -1;
 		}
@@ -985,6 +983,7 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 			printf("[E] bind error:%d.\n", WSAGetLastError());
 #endif
+			CoUninitialize();
 			WSACleanup();
 			return -1;
 		}
@@ -996,6 +995,7 @@ int main(int argc, char** argv)
 			printf("[E] listen error:%d.\n", WSAGetLastError());
 #endif
 			closesocket(serverSock);
+			CoUninitialize();
 			WSACleanup();
 			return -1;
 			}
@@ -1024,6 +1024,7 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 			printf("[E] Socket error:%d.\n", WSAGetLastError());
 #endif
+			CoUninitialize();
 			WSACleanup();
 			return -1;
 		}
@@ -1034,6 +1035,7 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 			printf("[E] bind error:%d.\n", WSAGetLastError());
 #endif
+			CoUninitialize();
 			WSACleanup();
 			return -1;
 		}
@@ -1045,6 +1047,7 @@ int main(int argc, char** argv)
 			printf("[E] listen error:%d.\n", WSAGetLastError());
 #endif
 			closesocket(serverSock);
+			CoUninitialize();
 			WSACleanup();
 			return -1;
 		}
@@ -1080,6 +1083,7 @@ int main(int argc, char** argv)
 	}
 
 	closesocket(serverSock);
+	CoUninitialize();
 	WSACleanup();
 	
 	return 0;
