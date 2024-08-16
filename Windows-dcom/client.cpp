@@ -258,7 +258,7 @@ int forwarderRecvData(void *ptr)
 				return -1;
 			}else if(rec <= 0){
 #ifdef _DEBUG
-				printf("[I] recv error:%d\n", err);
+				printf("[I] recv error:%d\n", rec);
 #endif
 				return -1;
 			}else{
