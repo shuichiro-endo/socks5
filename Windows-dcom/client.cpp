@@ -256,13 +256,11 @@ int forwarderRecvData(void *ptr)
 				printf("[I] recv error:%d\n", err);
 #endif
 				return -1;
-			}else if(rec < 0){
+			}else if(rec <= 0){
 #ifdef _DEBUG
 				printf("[I] recv error:%d\n", err);
 #endif
 				return -1;
-			}else if(rec == 0){
-				continue;
 			}else{
 				ulInputLength = (ULONG)rec;
 				hr = pSocks5Server->SendForwarderData(ulInputLength, pbInputBuffer, tv_sec, tv_usec);

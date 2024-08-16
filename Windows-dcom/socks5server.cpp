@@ -872,14 +872,12 @@ HRESULT STDMETHODCALLTYPE CSocks5Server::RecvForwarderData(ULONG *pulOutputLengt
                         free(pTmp);
                         return E_FAIL;
                     }
-                }else if(iRec < 0){
+                }else if(iRec <= 0){
                     EnterCriticalSection(&m_cs);
                     m_dwSocks5State = SOCKS5_ERROR;
                     LeaveCriticalSection(&m_cs);
                     free(pTmp);
                     return E_FAIL;
-                }else if(iRec == 0){
-                    continue;
                 }else{
                     *pulOutputLength = (ULONG)iRec;
                     *pbOutputBuffer = static_cast<BYTE *>(CoTaskMemAlloc(*pulOutputLength));
