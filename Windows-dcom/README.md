@@ -117,11 +117,14 @@ register_proxystub.bat
 - client
 ```
 usage        : client.exe -h socks5_listen_ip -p socks5_listen_port -H socks5server_ip
+             : [-a username] [-b password] [-c domainname]
              : [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]
 example      : client.exe -h 192.168.0.5 -p 9050 -H 192.168.0.10
              : client.exe -h localhost -p 9050 -H 192.168.0.10
+             : client.exe -h localhost -p 9050 -H 192.168.0.10 -a test01 -b p@ssw0rd -c TEST.LOCAL
              : client.exe -h ::1 -p 9050 -H 192.168.0.10 -A 3 -B 0 -C 3 -D 0
              : client.exe -h 192.168.0.5 -p 9050 -H 192.168.0.10 -A 30 -C 30
              : client.exe -h fe80::xxxx:xxxx:xxxx:xxxx%14 -p 9050 -H 192.168.0.10 -A 30 -C 30
+             : client.exe -h localhost -p 9050 -H 192.168.0.10 -a test01 -b p@ssw0rd -c TEST.LOCAL -A 10 -C 10
 ```
 

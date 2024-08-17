@@ -34,6 +34,9 @@ char *optarg = NULL;
 char *socks5ServerIp = NULL;
 char *socks5ServerPort = NULL;
 char *socks5TargetIp = NULL;
+char *username = NULL;
+char *password = NULL;
+char *domainname = NULL;
 
 // CLSID:70d2c8cf-f464-414a-84be-95fecc01c132
 static const GUID CLSID_Socks5Server =
@@ -479,7 +482,8 @@ int worker(void *ptr)
 	wchar_t targetDomainname_w[1024];
 	HRESULT hr;
 	COSERVERINFO csi;
-//	COAUTHINFO cai;
+	COAUTHIDENTITY caid;
+	COAUTHINFO cai;
 	MULTI_QI mqi[] = { {&IID_ISocks5Server, NULL, S_OK} };
 	ISocks5Server *pSocks5Server = NULL;
 	ULONG ulInputLength = 0;
@@ -491,12 +495,32 @@ int worker(void *ptr)
 #ifdef _DEBUG
 	printf("[I] Target domainname:%s, Length:%d\n", targetDomainname, targetDomainnameLength);
 #endif
+	if(username != NULL && password != NULL && domainname != NULL){
+		caid.User = (USHORT *)username;
+		caid.UserLength = strlen(username) + 1;
+		caid.Domain = (USHORT *)domainname;
+		caid.DomainLength = strlen(domainname) + 1;
+		caid.Password = (USHORT *)password;
+		caid.PasswordLength = strlen(password) + 1;
+		caid.Flags = SEC_WINNT_AUTH_IDENTITY_ANSI;
+
+		cai.dwAuthnSvc = RPC_C_AUTHN_WINNT;
+		cai.dwAuthzSvc = RPC_C_AUTHZ_NONE;
+		cai.pwszServerPrincName = NULL;
+		cai.dwAuthnLevel = RPC_C_AUTHN_LEVEL_CONNECT;
+		cai.dwImpersonationLevel = RPC_C_IMP_LEVEL_IMPERSONATE;
+		cai.pAuthIdentityData = &caid;
+		cai.dwCapabilities = EOAC_NONE;
+
+		csi.pAuthInfo = &cai;
+	}else{
+		csi.pAuthInfo = NULL;
+	}
+
 	mbstowcs(targetDomainname_w, targetDomainname, strlen(targetDomainname)+1);
 	csi.dwReserved1 = 0;
 	csi.pwszName = targetDomainname_w;	// target server
-	csi.pAuthInfo = NULL;	//
 	csi.dwReserved2 = 0;
-
 
 #ifdef _DEBUG
 	printf("[I] CoCreateInstanceEx\n");
@@ -720,12 +744,15 @@ void workerThread(void *ptr)
 void usage(char *filename)
 {
 	printf("usage        : %s -h socks5_listen_ip -p socks5_listen_port -H socks5server_ip\n", filename);
+	printf("             : [-a username] [-b password] [-c domainname]\n");
 	printf("             : [-A recv/send tv_sec(timeout 0-10 sec)] [-B recv/send tv_usec(timeout 0-1000000 microsec)] [-C forwarder tv_sec(timeout 0-3600 sec)] [-D forwarder tv_usec(timeout 0-1000000 microsec)]\n");
 	printf("example      : %s -h 192.168.0.5 -p 9050 -H 192.168.0.10\n", filename);
 	printf("             : %s -h localhost -p 9050 -H 192.168.0.10\n", filename);
+	printf("             : %s -h localhost -p 9050 -H 192.168.0.10 -a test01 -b p@ssw0rd -c TEST.LOCAL\n", filename);
 	printf("             : %s -h ::1 -p 9050 -H 192.168.0.10 -A 3 -B 0 -C 3 -D 0\n", filename);
 	printf("             : %s -h 192.168.0.5 -p 9050 -H 192.168.0.10 -A 30 -C 30\n", filename);
 	printf("             : %s -h fe80::xxxx:xxxx:xxxx:xxxx%%14 -p 9050 -H 192.168.0.10 -A 30 -C 30\n", filename);
+	printf("             : %s -h localhost -p 9050 -H 192.168.0.10 -a test01 -b p@ssw0rd -c TEST.LOCAL -A 10 -C 10\n", filename);
 }
 
 
@@ -773,7 +800,7 @@ int main(int argc, char** argv)
 {
 
 	int opt;
-	char optstring[] = "h:p:H:A:B:C:D:";
+	char optstring[] = "h:p:H:a:b:c:A:B:C:D:";
 	long tv_sec = 3;	// recv send
 	long tv_usec = 0;	// recv send
 	long forwarder_tv_sec = 3;
@@ -791,6 +818,18 @@ int main(int argc, char** argv)
 		
 		case 'H':
 			socks5TargetIp = optarg;
+			break;
+
+		case 'a':
+			username = optarg;
+			break;
+
+		case 'b':
+			password = optarg;
+			break;
+
+		case 'c':
+			domainname = optarg;
 			break;
 
 		case 'A':
@@ -816,6 +855,11 @@ int main(int argc, char** argv)
 	}
 
 	if(socks5ServerIp == NULL || socks5ServerPort == NULL || socks5TargetIp == NULL){
+		usage(argv[0]);
+		exit(1);
+	}
+
+	if(!(username != NULL && password != NULL && domainname != NULL) && !(username == NULL && password == NULL && domainname == NULL)){
 		usage(argv[0]);
 		exit(1);
 	}
@@ -907,6 +951,13 @@ int main(int argc, char** argv)
 		WSACleanup();
 		return 1;
 	}
+
+
+#ifdef _DEBUG
+	if(username != NULL && password != NULL && domainname != NULL){
+		printf("[I] username:%s password:%s domainname:%s\n", username, password, domainname);
+	}
+#endif
 
 #ifdef _DEBUG
 	printf("[I] Timeout recv/send tv_sec(0-10 sec):%ld sec recv/send tv_usec(0-1000000 microsec):%ld microsec.\n", tv_sec, tv_usec);
