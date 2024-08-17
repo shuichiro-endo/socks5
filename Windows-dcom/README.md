@@ -7,6 +7,11 @@ socks5 server and client (Windows DCOM)
 > 
 > Use only for testing purposes.
 
+> [!NOTE]
+> To run this program, a server and a client need to join a domain.
+> 
+> Additionally, a user running the client needs to be the domain user, otherwise the access will be denied.
+
 ## Build
 ### Install dependencies
 - visual studio community (Desktop development with C++)
