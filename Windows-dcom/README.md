@@ -2,15 +2,8 @@
 
 socks5 server and client (Windows DCOM)
 
-> [!CAUTION]
-> By default, remote access of DCOM is not allowed.
-> 
-> Use only for testing purposes.
-
 > [!NOTE]
-> To run this program, a server and a client need to join a domain.
-> 
-> Additionally, a user running the client needs to be the domain user, otherwise the access will be denied.
+> To run this program, a server computer need to join a domain.
 
 ## Build
 ### Install dependencies
@@ -29,7 +22,7 @@ cd socks5\Windows-dcom
 compile_server.bat
 compile_client.bat
 ```
-4. copy socks5\Windows-dcom directory to client and server
+4. copy socks5\Windows-dcom directory to client and server computers
 
 ## Install
 ### Install
@@ -65,30 +58,22 @@ register_proxystub.bat
 ```
 
 ### Set up DCOM
-> [!CAUTION]
-> By default, remote access of DCOM is not allowed.
-> 
-> The following settings are dangerous.
-> 
-> Use only for testing purposes.
 - server (e.g. Windows Server 2022)
     1. run dcomcnfg (administrator authorization is required)
     ![](./imgs/dcomcnfg/01.jpg)
     ![](./imgs/dcomcnfg/02.jpg)
     ![](./imgs/dcomcnfg/03.jpg)
-    ![](./imgs/dcomcnfg/04-1.jpg)
-    ![](./imgs/dcomcnfg/04-2.jpg)
-    ![](./imgs/dcomcnfg/04-3.jpg)
-    ![](./imgs/dcomcnfg/04-4.jpg)
-    ![](./imgs/dcomcnfg/04-5.jpg)
-    ![](./imgs/dcomcnfg/04-6.jpg)
-    ![](./imgs/dcomcnfg/05-1.jpg)
-    ![](./imgs/dcomcnfg/05-2.jpg)
-    ![](./imgs/dcomcnfg/05-3.jpg)
-    ![](./imgs/dcomcnfg/05-4.jpg)
-    ![](./imgs/dcomcnfg/06-1.jpg)
-    ![](./imgs/dcomcnfg/06-2.jpg)
-    ![](./imgs/dcomcnfg/06-3.jpg)
+    ![](./imgs/dcomcnfg/04.jpg)
+    ![](./imgs/dcomcnfg/05.jpg)
+    ![](./imgs/dcomcnfg/06.jpg)
+    ![](./imgs/dcomcnfg/07.jpg)
+    ![](./imgs/dcomcnfg/08.jpg)
+    ![](./imgs/dcomcnfg/09.jpg)
+    ![](./imgs/dcomcnfg/10.jpg)
+    ![](./imgs/dcomcnfg/11.jpg)
+    ![](./imgs/dcomcnfg/12.jpg)
+    ![](./imgs/dcomcnfg/13.jpg)
+    ![](./imgs/dcomcnfg/14.jpg)
     2. run windows defender firewall with advanced security (administrator authorization is required)
     ![](./imgs/firewall/01.jpg)
     ![](./imgs/firewall/02.jpg)
@@ -115,6 +100,14 @@ register_proxystub.bat
 
 ## Usage
 - client
+> [!NOTE]
+> How to run the client
+> 
+> Sign in as a domain user account to a client computer that has joined the domain. And run the client.
+>
+> or
+> 
+> Set the domain user account (username, password and domainname) when running the client.
 ```
 usage        : client.exe -h socks5_listen_ip -p socks5_listen_port -H socks5server_ip
              : [-a username] [-b password] [-c domainname]
