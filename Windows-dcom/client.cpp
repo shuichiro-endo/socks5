@@ -942,7 +942,7 @@ int main(int argc, char** argv)
 #ifdef _DEBUG
 	printf("[I] CoInitializeSecurity\n");
 #endif
-	hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_NONE, RPC_C_IMP_LEVEL_ANONYMOUS, NULL, EOAC_NONE, NULL);
+	hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_CONNECT, RPC_C_IMP_LEVEL_IDENTIFY, NULL, EOAC_NONE, NULL);
 	if(FAILED(hr)){
 #ifdef _DEBUG
 		printf("[E] CoInitializeSecurity error:0x%x\n", hr);
