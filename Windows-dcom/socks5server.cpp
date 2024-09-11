@@ -329,7 +329,7 @@ HRESULT STDMETHODCALLTYPE CSocks5Server::Socks5RequestResponse(ULONG ulInputLeng
 
 
     EnterCriticalSection(&m_cs);
-    if(m_dwSocks5State == SELECTION_RESPONSE || m_dwSocks5State == USERNAME_PASSWORD_AUTHENTICATION_RESPONSE){
+    if((m_dwSocks5State == SELECTION_RESPONSE && g_cAuthenticationMethod == 0x0) || (m_dwSocks5State == USERNAME_PASSWORD_AUTHENTICATION_RESPONSE && g_cAuthenticationMethod == 0x2)){
         pTmp = (BYTE *)calloc(BUFFERSIZE, sizeof(BYTE));
         ZeroMemory(pTmp, BUFFERSIZE);
 
