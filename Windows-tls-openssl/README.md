@@ -220,8 +220,7 @@ curl -v -x socks5h://192.168.0.5:9050 https://www.google.com
     ```
     2. modify client.c file (if you change the certificate filename or directory path)
     ```
-    char serverCertificateFilename[256] = "server.crt";
-    char serverCertificateFileDirectoryPath[256] = ".";
+    char serverCertificateFilename[256] = ".\\server.crt";
     ```
     3. run x64 Native Tools Command Prompt for VS 2022
     4. set environment variable

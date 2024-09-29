@@ -166,8 +166,7 @@ curl -v -x socks5h://127.0.0.1:9050 https://www.google.com
     ```
     2. modify client.c file (if you change the certificate filename or directory path)
     ```
-    char serverCertificateFilename[256] = "server.crt";
-    char serverCertificateFileDirectoryPath[256] = ".";
+    char serverCertificateFilename[256] = "./server.crt";
     ```
     3. build (if you change the certificate filename or directory path)
     ```

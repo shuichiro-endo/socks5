@@ -40,8 +40,7 @@ char *socks5Server2Port = NULL;
 int reverseFlag = 0;
 int tlsFlag = 0;
 
-char serverCertificateFilename[256] = "server.crt";	// server certificate file name
-char serverCertificateFileDirectoryPath[256] = ".";	// server certificate file directory path
+char serverCertificateFilename[256] = "./server.crt";	// server certificate file name
 
 
 int recvData(int sock, void *buffer, int length, long tv_sec, long tv_usec)
@@ -567,7 +566,7 @@ int worker(void *ptr)
 				return -2;
 			}
 			
-			ret = SSL_CTX_load_verify_locations(targetCtx, serverCertificateFilename, serverCertificateFileDirectoryPath);
+			ret = SSL_CTX_load_verify_locations(targetCtx, serverCertificateFilename, NULL);
 			if(ret == 0){
 #ifdef _DEBUG
 				printf("[E] SSL_CTX_load_verify_locations error.\n");
@@ -1386,7 +1385,7 @@ int main(int argc, char **argv)
 				return -2;
 			}
 			
-			ret = SSL_CTX_load_verify_locations(targetCtx, serverCertificateFilename, serverCertificateFileDirectoryPath);
+			ret = SSL_CTX_load_verify_locations(targetCtx, serverCertificateFilename, NULL);
 			if(ret == 0){
 #ifdef _DEBUG
 				printf("[E] SSL_CTX_load_verify_locations error.\n");
