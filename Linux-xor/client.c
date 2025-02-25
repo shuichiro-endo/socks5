@@ -33,10 +33,10 @@ char *socks5Server2Port = NULL;
 int reverseFlag = 0;
 int xorFlag = 0;
 
-char xorDefaultKeyHexstring[101] = "cafedeadcafebabe";
+char xorDefaultKeyHexstring[201] = "cafedeadcafebabe";
 char *xorKeyHexstring = NULL;
 int xorKeyHexstringLength = 0;
-unsigned char xorKey[201] = {0};
+unsigned char xorKey[101] = {0};
 int xorKeyLength = 0;
 
 
