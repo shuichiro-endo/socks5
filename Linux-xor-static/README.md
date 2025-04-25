@@ -58,7 +58,7 @@ make
 git clone https://github.com/shuichiro-endo/socks5.git
 ```
 
-2. copy c-ares directories to socks5 directory
+2. copy c-ares directories to socks5/Linux-xor-static directory
 - c-ares-1.34.5/include
 ```
 cp -rp c-ares-1.34.5/include socks5/Linux-xor-static/
@@ -68,7 +68,7 @@ cp -rp c-ares-1.34.5/include socks5/Linux-xor-static/
 cp -rp c-ares-1.34.5/build/lib socks5/Linux-xor-static/
 ```
 
-3. check Linux_static directory
+3. check socks5/Linux-xor-static directory
 ```
 > tree socks5/Linux-xor-static
 socks5/Linux-xor-static
@@ -106,7 +106,7 @@ cd socks5/Linux-xor-static
 make
 ```
 
-5. check if they are statically linked binaries
+5. check if they are statically linked binaries (client, server)
 ```
 > file client
 file client
