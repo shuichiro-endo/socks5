@@ -40,7 +40,7 @@ compile.bat
     ![](./imgs/firewall/10.jpg)
     ![](./imgs/firewall/11.jpg)
     ![](./imgs/firewall/12.jpg)
-    4. stop socks5server.exe (ctrl+c) and restart server
+    4. stop socks5server.exe (ctrl+c) and restart server computer
 
 ## Usage
 - client
