@@ -1,0 +1,67 @@
+//
+// Title:  socks5server.idl (Windows RPC)
+// Author: Shuichiro Endo
+//
+
+[
+    uuid(c16b5836-2f9e-4758-8091-dfa713630670),
+    version(1.0)
+]
+interface Socks5Server
+{
+    int SelectionRequestResponse
+    (
+        [in] handle_t IDL_handle,
+        [in] unsigned int id,
+        [in] int inputBufferLength,
+        [in, size_is(inputBufferLength)] const unsigned char *inputBuffer,
+        [out] int *outputBufferLength,
+        [out, size_is(, *outputBufferLength)] unsigned char **outputBuffer
+    );
+
+    int UsernamePasswordAuthenticationRequestResponse
+    (
+        [in] handle_t IDL_handle,
+        [in] unsigned int id,
+        [in] int inputBufferLength,
+        [in, size_is(inputBufferLength)] const unsigned char *inputBuffer,
+        [out] int *outputBufferLength,
+        [out, size_is(, *outputBufferLength)] unsigned char **outputBuffer
+    );
+
+    int Socks5RequestResponse
+    (
+        [in] handle_t IDL_handle,
+        [in] unsigned int id,
+        [in] int inputBufferLength,
+        [in, size_is(inputBufferLength)] const unsigned char *inputBuffer,
+        [out] int *outputBufferLength,
+        [out, size_is(, *outputBufferLength)] unsigned char **outputBuffer
+    );
+
+    int SendForwarderData
+    (
+        [in] handle_t IDL_handle,
+        [in] unsigned int id,
+        [in] int inputBufferLength,
+        [in, size_is(inputBufferLength)] const unsigned char *inputBuffer,
+        [in] long tv_sec,
+        [in] long tv_usec
+    );
+
+    int RecvForwarderData
+    (
+        [in] handle_t IDL_handle,
+        [in] unsigned int id,
+        [in] long tv_sec,
+        [in] long tv_usec,
+        [out] int *outputBufferLength,
+        [out, size_is(, *outputBufferLength)] unsigned char **outputBuffer
+    );
+
+    void Close
+    (
+        [in] handle_t IDL_handle,
+        [in] unsigned int id
+    );
+}
