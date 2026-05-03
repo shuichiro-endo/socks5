@@ -1037,9 +1037,9 @@ int forwarderXorWorker1(void *ptr)
 	while(1){
 		bzero(buffer, BUFSIZ+1);
 
-		rec = recvData(ring, clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
+		rec = recvDataXor(ring, clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
 		if(rec > 0){
-			sen = sendDataXor(ring, targetSock, buffer, rec, tv_sec, tv_usec);
+			sen = sendData(ring, targetSock, buffer, rec, tv_sec, tv_usec);
 			if(sen <= 0){
 				break;
 			}
@@ -1071,9 +1071,9 @@ int forwarderXorWorker2(void *ptr)
 	while(1){
 		bzero(buffer, BUFSIZ+1);
 
-		rec = recvDataXor(ring, targetSock, buffer, BUFSIZ, tv_sec, tv_usec);
+		rec = recvData(ring, targetSock, buffer, BUFSIZ, tv_sec, tv_usec);
 		if(rec > 0){
-			sen = sendData(ring, clientSock, buffer, rec, tv_sec, tv_usec);
+			sen = sendDataXor(ring, clientSock, buffer, rec, tv_sec, tv_usec);
 			if(sen <= 0){
 				break;
 			}
