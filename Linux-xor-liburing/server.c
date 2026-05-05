@@ -25,6 +25,7 @@
 #include "server.h"
 
 #define RING_QUEUE_DEPTH	8
+#define UINT32_SIZE			sizeof(uint32_t)
 
 
 char *socks5ServerIp = NULL;
@@ -126,6 +127,27 @@ void xor(unsigned char *buffer, int length, unsigned char *key, int keyLength)
 	}
 
 	return;
+}
+
+
+int loadLengthFromBuffer(const char *buffer)
+{
+	uint32_t net = 0;
+	uint32_t host = 0;
+
+	memcpy(&net, buffer, sizeof(net));
+	host = ntohl(net);
+
+	return (int)host;
+}
+
+
+void storeLengthToBuffer(int length, char *buffer)
+{
+	uint32_t u = (uint32_t)length;
+	uint32_t net = htonl(u);
+
+	memcpy(buffer, &net, sizeof(net));
 }
 
 
@@ -319,6 +341,8 @@ int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 {
 	int ret = 0;
 	int rec = 0;
+	int recvLength = 0;
+	int len = 0;
 	uint64_t idRecv = (uint64_t)random();
 	uint64_t idTimeout = idRecv + 1;
 	uint64_t idCancelRecv = idRecv + 2;
@@ -329,6 +353,7 @@ int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 	struct io_uring_cqe *cqe = NULL;
 	struct __kernel_timespec ts = {0};
 	int timeoutActive = 0;
+	int recvSizeActive = 0;
 	int recvActive = 0;
 
 	bzero(buffer, length+1);
@@ -342,8 +367,9 @@ int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 		goto error;
 	}
 
-	io_uring_prep_recv(sqeRecv, sock, buffer, length, 0);
+	io_uring_prep_recv(sqeRecv, sock, buffer, UINT32_SIZE, 0);
 	sqeRecv->user_data = idRecv;
+	recvSizeActive = 1;
 	recvActive = 1;
 
 	sqeTimeout = io_uring_get_sqe(ring);
@@ -373,41 +399,178 @@ int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 			io_uring_cqe_seen(ring, cqe);
 
 			if(rec >= 0){
-				recvActive = 0;
+				recvLength += rec;
 
-				if(timeoutActive == 1){
-					sqeCancel = io_uring_get_sqe(ring);
-					if(sqeCancel == NULL){
+				if(recvSizeActive == 1){
+					if(recvLength == UINT32_SIZE){
+						recvSizeActive = 0;
+
+						len = loadLengthFromBuffer(buffer);
+						bzero(buffer, length+1);
+
+						sqeRecv = io_uring_get_sqe(ring);
+						if(sqeRecv == NULL){
+							goto error;
+						}
+
+						io_uring_prep_recv(sqeRecv, sock, buffer, len, 0);
+						sqeRecv->user_data = idRecv;
+
+						ret = io_uring_submit(ring);
+						if(ret < 0){
+							goto error;
+						}
+
+						recvLength = 0;
+						recvActive = 1;
+					}else if(recvLength < UINT32_SIZE){
+						sqeRecv = io_uring_get_sqe(ring);
+						if(sqeRecv == NULL){
+							goto error;
+						}
+
+						io_uring_prep_recv(sqeRecv, sock, buffer+recvLength, UINT32_SIZE-recvLength, 0);
+						sqeRecv->user_data = idRecv;
+
+						ret = io_uring_submit(ring);
+						if(ret < 0){
+							goto error;
+						}
+
+						recvSizeActive = 1;
+						recvActive = 1;
+					}else{
+						recvSizeActive = 0;
+						recvActive = 0;
+
+						if(timeoutActive == 1){
+							sqeCancel = io_uring_get_sqe(ring);
+							if(sqeCancel == NULL){
+								goto error;
+							}
+
+							io_uring_prep_timeout_remove(sqeCancel, idTimeout, 0);
+							sqeCancel->user_data = idCancelTimeout;
+
+							ret = io_uring_submit(ring);
+							if(ret < 0){
+								goto error;
+							}
+						}else{
+							break;
+						}
+					}
+				}else{
+					if(recvActive == 1){
+						if(recvLength == len){
+							recvActive = 0;
+
+							if(timeoutActive == 1){
+								sqeCancel = io_uring_get_sqe(ring);
+								if(sqeCancel == NULL){
+									goto error;
+								}
+
+								io_uring_prep_timeout_remove(sqeCancel, idTimeout, 0);
+								sqeCancel->user_data = idCancelTimeout;
+
+								ret = io_uring_submit(ring);
+								if(ret < 0){
+									goto error;
+								}
+							}else{
+								break;
+							}
+						}else if(recvLength < len){
+							sqeRecv = io_uring_get_sqe(ring);
+							if(sqeRecv == NULL){
+								goto error;
+							}
+
+							io_uring_prep_recv(sqeRecv, sock, buffer+recvLength, len-recvLength, 0);
+							sqeRecv->user_data = idRecv;
+
+							ret = io_uring_submit(ring);
+							if(ret < 0){
+								goto error;
+							}
+
+							recvActive = 1;
+						}else{
+							recvActive = 0;
+
+							if(timeoutActive == 1){
+								sqeCancel = io_uring_get_sqe(ring);
+								if(sqeCancel == NULL){
+									goto error;
+								}
+
+								io_uring_prep_timeout_remove(sqeCancel, idTimeout, 0);
+								sqeCancel->user_data = idCancelTimeout;
+
+								ret = io_uring_submit(ring);
+								if(ret < 0){
+									goto error;
+								}
+							}else{
+								break;
+							}
+						}
+
+					}else{
+						if(timeoutActive == 1){
+							sqeCancel = io_uring_get_sqe(ring);
+							if(sqeCancel == NULL){
+								goto error;
+							}
+
+							io_uring_prep_timeout_remove(sqeCancel, idTimeout, 0);
+							sqeCancel->user_data = idCancelTimeout;
+
+							ret = io_uring_submit(ring);
+							if(ret < 0){
+								goto error;
+							}
+						}else{
+							break;
+						}
+					}
+				}
+			}else if(rec == -EAGAIN || rec == -EWOULDBLOCK){
+				usleep(5000);
+
+				if(recvSizeActive == 1){
+					sqeRecv = io_uring_get_sqe(ring);
+					if(sqeRecv == NULL){
 						goto error;
 					}
 
-					io_uring_prep_timeout_remove(sqeCancel, idTimeout, 0);
-					sqeCancel->user_data = idCancelTimeout;
+					io_uring_prep_recv(sqeRecv, sock, buffer+recvLength, UINT32_SIZE-recvLength, 0);
+					sqeRecv->user_data = idRecv;
 
 					ret = io_uring_submit(ring);
 					if(ret < 0){
 						goto error;
 					}
+
+					recvSizeActive = 1;
+					recvActive = 1;
 				}else{
-					break;
+					sqeRecv = io_uring_get_sqe(ring);
+					if(sqeRecv == NULL){
+						goto error;
+					}
+
+					io_uring_prep_recv(sqeRecv, sock, buffer+recvLength, len-recvLength, 0);
+					sqeRecv->user_data = idRecv;
+
+					ret = io_uring_submit(ring);
+					if(ret < 0){
+						goto error;
+					}
+
+					recvActive = 1;
 				}
-			}else if(rec == -EAGAIN || rec == -EWOULDBLOCK){
-				usleep(5000);
-
-				sqeRecv = io_uring_get_sqe(ring);
-				if(sqeRecv == NULL){
-					goto error;
-				}
-
-				io_uring_prep_recv(sqeRecv, sock, buffer, length, 0);
-				sqeRecv->user_data = idRecv;
-
-				ret = io_uring_submit(ring);
-				if(ret < 0){
-					goto error;
-				}
-
-				recvActive = 1;
 			}else{
 				recvActive = 0;
 
@@ -494,9 +657,13 @@ int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 		}
 	}
 
-	xor((unsigned char *)buffer, rec, xorKey, xorKeyLength);
+	if(recvLength > 0 && recvLength < BUFSIZ){
+		xor((unsigned char *)buffer, recvLength, xorKey, xorKeyLength);
+	}else{
+		goto error;
+	}
 
-	return rec;
+	return recvLength;
 
 error:
 	return -1;
@@ -509,7 +676,6 @@ int sendData(struct io_uring *ring, int sock, void *buffer, int length, long tv_
 	int sen = 0;
 	int sendLength = 0;
 	int len = length;
-
 	uint64_t idSend = (uint64_t)random();
 	uint64_t idTimeout = idSend + 1;
 	uint64_t idCancelSend = idSend + 2;
@@ -713,8 +879,8 @@ int sendDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 	int ret = 0;
 	int sen = 0;
 	int sendLength = 0;
-	int len = length;
-
+	int len = 0;
+	char buffer2[BUFSIZ+UINT32_SIZE+1] = {0};
 	uint64_t idSend = (uint64_t)random();
 	uint64_t idTimeout = idSend + 1;
 	uint64_t idCancelSend = idSend + 2;
@@ -727,7 +893,16 @@ int sendDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 	int timeoutActive = 0;
 	int sendActive = 0;
 
-	xor((unsigned char *)buffer, length, xorKey, xorKeyLength);
+	if(length > 0 && length <= BUFSIZ){
+		xor((unsigned char *)buffer, length, xorKey, xorKeyLength);
+	}else{
+		goto error;
+	}
+
+
+	storeLengthToBuffer(length, buffer2);
+	memcpy(buffer2+UINT32_SIZE, buffer, length);
+	len = length + UINT32_SIZE;
 
 	while(io_uring_peek_cqe(ring, &cqe) == 0){
 		io_uring_cqe_seen(ring, cqe);
@@ -738,7 +913,7 @@ int sendDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 		goto error;
 	}
 
-	io_uring_prep_send(sqeSend, sock, buffer, len, 0);
+	io_uring_prep_send(sqeSend, sock, buffer2, len, 0);
 	sqeSend->user_data = idSend;
 	sendActive = 1;
 
@@ -778,7 +953,7 @@ int sendDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 						goto error;
 					}
 
-					io_uring_prep_send(sqeSend, sock, buffer+sendLength, len, 0);
+					io_uring_prep_send(sqeSend, sock, buffer2+sendLength, len, 0);
 					sqeSend->user_data = idSend;
 					sendActive = 1;
 
@@ -814,7 +989,7 @@ int sendDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 					goto error;
 				}
 
-				io_uring_prep_send(sqeSend, sock, buffer+sendLength, len, 0);
+				io_uring_prep_send(sqeSend, sock, buffer2+sendLength, len, 0);
 				sqeSend->user_data = idSend;
 				sendActive = 1;
 
@@ -908,7 +1083,7 @@ int sendDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 		}
 	}
 
-	return sendLength;
+	return sendLength-UINT32_SIZE;
 
 error:
 	return -1;

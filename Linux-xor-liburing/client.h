@@ -7,6 +7,8 @@ void printBytes(unsigned char *input, int input_length);
 char hexcharToInt(char c);
 int hexstringToArray(char *hexstring, int hexstringLength, unsigned char *output, int outputSize);
 void xor(unsigned char *buffer, int length, unsigned char *key, int keyLength);
+int loadLengthFromBuffer(const char *buffer);
+void storeLengthToBuffer(int length, char *buffer);
 int recvData(struct io_uring *ring, int sock, void *buffer, int length, long tv_sec, long tv_usec);
 int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long tv_sec, long tv_usec);
 int sendData(struct io_uring *ring, int sock, void *buffer, int length, long tv_sec, long tv_usec);
