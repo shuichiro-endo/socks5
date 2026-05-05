@@ -406,6 +406,10 @@ int recvDataXor(struct io_uring *ring, int sock, void *buffer, int length, long 
 						len = loadLengthFromBuffer(buffer);
 						bzero(buffer, length+1);
 
+						if(len > length){
+							goto error;
+						}
+
 						sqeRecv = io_uring_get_sqe(ring);
 						if(sqeRecv == NULL){
 							goto error;
