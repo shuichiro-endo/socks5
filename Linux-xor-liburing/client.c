@@ -244,6 +244,8 @@ int recvData(struct io_uring *ring, int sock, void *buffer, int length, long tv_
 			ret = cqe->res;
 			io_uring_cqe_seen(ring, cqe);
 
+			timeoutActive = 0;
+
 			if(recvActive == 1){
 #ifdef _DEBUG
 				printf("[I] recvData timeout\n");
