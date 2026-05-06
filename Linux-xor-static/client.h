@@ -7,11 +7,17 @@ void printBytes(unsigned char *input, int input_length);
 char hexcharToInt(char c);
 int hexstringToArray(char *hexstring, int hexstringLength, unsigned char *output, int outputSize);
 void xor(unsigned char *buffer, int length, unsigned char *key, int keyLength);
+int loadLengthFromBuffer(const char *buffer);
+void storeLengthToBuffer(int length, char *buffer);
 int recvData(int sock, void *buffer, int length, long tv_sec, long tv_usec);
 int recvDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec);
 int sendData(int sock, void *buffer, int length, long tv_sec, long tv_usec);
 int sendDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec);
+int forwarderWorker1(void *ptr);
+int forwarderWorker2(void *ptr);
 int forwarder(int clientSock, int targetSock, long tv_sec, long tv_usec);
+int forwarderXorWorker1(void *ptr);
+int forwarderXorWorker2(void *ptr);
 int forwarderXor(int clientSock, int targetSock, long tv_sec, long tv_usec);
 char *getIpv6AddrString(const char *addr);
 char *getIpv6InterfaceName(const char *addr);
@@ -29,6 +35,13 @@ typedef struct {
 	long forwarder_tv_sec;
 	long forwarder_tv_usec;
 } PARAM, *pPARAM;
+
+typedef struct {
+	int clientSock;
+	int targetSock;
+	long tv_sec;
+	long tv_usec;
+} PARAM2, *pPARAM2;
 
 typedef struct {
 	struct sockaddr_in *addr;

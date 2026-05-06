@@ -13,14 +13,14 @@ socks5 server and client (Linux static)
 #### c-ares
 1. download c-ares
 ```
-wget https://github.com/c-ares/c-ares/releases/download/v1.34.5/c-ares-1.34.5.tar.gz
-tar xvzf c-ares-1.34.5.tar.gz
+wget https://github.com/c-ares/c-ares/releases/download/v1.34.6/c-ares-1.34.6.tar.gz
+tar xvzf c-ares-1.34.6.tar.gz
 ```
 
 2. modify ares_getaddrinfo.c and ares_getnameinfo.c ([static linking (glibc getservbyport_r getservbyname_r) #945](https://github.com/c-ares/c-ares/issues/945))
-- c-ares-1.34.5/src/lib/ares_getaddrinfo.c (lookup_service function)
+- c-ares-1.34.6/src/lib/ares_getaddrinfo.c (lookup_service function)
 ```
-nano -l c-ares-1.34.5/src/lib/ares_getaddrinfo.c
+nano -l c-ares-1.34.6/src/lib/ares_getaddrinfo.c
 ```
 ```
 static unsigned short lookup_service(const char *service, int flags)
@@ -31,9 +31,9 @@ static unsigned short lookup_service(const char *service, int flags)
     return 0;
 }
 ```
-- c-ares-1.34.5/src/lib/ares_getnameinfo.c (lookup_service function)
+- c-ares-1.34.6/src/lib/ares_getnameinfo.c (lookup_service function)
 ```
-nano -l c-ares-1.34.5/src/lib/ares_getnameinfo.c
+nano -l c-ares-1.34.6/src/lib/ares_getnameinfo.c
 ```
 ```
 static char *lookup_service(unsigned short port, unsigned int flags, char *buf,
@@ -45,7 +45,7 @@ static char *lookup_service(unsigned short port, unsigned int flags, char *buf,
 
 3. build c-ares
 ```
-cd c-ares-1.34.5
+cd c-ares-1.34.6
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local/cares -DCARES_STATIC=On -DCARES_STATIC_PIC=On ..
@@ -59,40 +59,40 @@ git clone https://github.com/shuichiro-endo/socks5.git
 ```
 
 2. copy c-ares directories to socks5/Linux-xor-static directory
-- c-ares-1.34.5/include
+- c-ares-1.34.6/include
 ```
-cp -rp c-ares-1.34.5/include socks5/Linux-xor-static/
+cp -rp c-ares-1.34.6/include socks5/Linux-xor-static/
 ```
-- c-ares-1.34.5/build/lib
+- c-ares-1.34.6/build/lib
 ```
-cp -rp c-ares-1.34.5/build/lib socks5/Linux-xor-static/
+cp -rp c-ares-1.34.6/build/lib socks5/Linux-xor-static/
 ```
 
 3. check socks5/Linux-xor-static directory
 ```
 > tree socks5/Linux-xor-static
 socks5/Linux-xor-static
+├── Makefile
+├── README.md
 ├── client.c
 ├── client.h
 ├── include
+│   ├── CMakeLists.txt
+│   ├── Makefile.am
+│   ├── Makefile.in
+│   ├── ares.h
 │   ├── ares_build.h
 │   ├── ares_build.h.cmake
 │   ├── ares_build.h.in
 │   ├── ares_dns.h
 │   ├── ares_dns_record.h
-│   ├── ares.h
 │   ├── ares_nameser.h
-│   ├── ares_version.h
-│   ├── CMakeLists.txt
-│   ├── Makefile.am
-│   └── Makefile.in
+│   └── ares_version.h
 ├── lib
 │   ├── libcares.a
 │   ├── libcares.so -> libcares.so.2
-│   ├── libcares.so.2 -> libcares.so.2.19.4
-│   └── libcares.so.2.19.4
-├── Makefile
-├── README.md
+│   ├── libcares.so.2 -> libcares.so.2.19.5
+│   └── libcares.so.2.19.5
 ├── server.c
 ├── server.h
 └── socks5.h

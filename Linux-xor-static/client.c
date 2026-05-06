@@ -26,6 +26,8 @@
 #include "client.h"
 #include "socks5.h"
 
+#define UINT32_SIZE			sizeof(uint32_t)
+
 
 char *socks5ServerIp = NULL;
 char *socks5ServerPort = NULL;
@@ -130,6 +132,27 @@ void xor(unsigned char *buffer, int length, unsigned char *key, int keyLength)
 }
 
 
+int loadLengthFromBuffer(const char *buffer)
+{
+	uint32_t net = 0;
+	uint32_t host = 0;
+
+	memcpy(&net, buffer, sizeof(net));
+	host = ntohl(net);
+
+	return (int)host;
+}
+
+
+void storeLengthToBuffer(int length, char *buffer)
+{
+	uint32_t host = (uint32_t)length;
+	uint32_t net = htonl(host);
+
+	memcpy(buffer, &net, sizeof(net));
+}
+
+
 int recvData(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int rec = 0;
@@ -176,9 +199,12 @@ int recvData(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 int recvDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int rec = 0;
+	int recvLength = 0;
+	int len = 0;
 	fd_set readfds;
 	int nfds = -1;
 	struct timeval tv;
+	int recvSizeActive = 1;
 	bzero(buffer, length+1);
 
 	while(1){
@@ -196,24 +222,72 @@ int recvDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 		}
 
 		if(FD_ISSET(sock, &readfds)){
-			rec = recv(sock, buffer, length, 0);
-			if(rec <= 0){
-				if(errno == EINTR){
-					continue;
-				}else if(errno == EAGAIN){
-					usleep(5000);
-					continue;
+			if(recvSizeActive == 1){
+				rec = recv(sock, buffer+recvLength, UINT32_SIZE-recvLength, 0);
+				if(rec <= 0){
+					if(errno == EINTR){
+						continue;
+					}else if(errno == EAGAIN){
+						usleep(5000);
+						continue;
+					}else{
+						return -1;
+					}
 				}else{
-					return -1;
+					recvLength += rec;
+
+					if(recvLength == UINT32_SIZE){
+						recvSizeActive = 0;
+
+						len = loadLengthFromBuffer(buffer);
+						bzero(buffer, length+1);
+
+						if(len > length){
+							return -1;
+						}
+
+						recvLength = 0;
+
+						continue;
+					}else if(recvLength < UINT32_SIZE){
+						continue;
+					}else{
+						return -1;
+					}
 				}
 			}else{
-				xor((unsigned char *)buffer, rec, xorKey, xorKeyLength);
-				break;
+				rec = recv(sock, buffer+recvLength, len-recvLength, 0);
+				if(rec <= 0){
+					if(errno == EINTR){
+						continue;
+					}else if(errno == EAGAIN){
+						usleep(5000);
+						continue;
+					}else{
+						return -1;
+					}
+				}else{
+					recvLength += rec;
+
+					if(recvLength == len){
+						break;
+					}else if(recvLength < len){
+						continue;
+					}else{
+						return -1;
+					}
+				}
 			}
 		}
 	}
 
-	return rec;
+	if(recvLength > 0 && recvLength <= length){
+		xor((unsigned char *)buffer, recvLength, xorKey, xorKeyLength);
+	}else{
+		return -1;
+	}
+
+	return recvLength;
 }
 
 
@@ -265,12 +339,21 @@ int sendDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 {
 	int sen = 0;
 	int sendLength = 0;
-	int len = length;
+	int len = 0;
+	char buffer2[BUFSIZ+UINT32_SIZE+1] = {0};
 	fd_set writefds;
 	int nfds = -1;
 	struct timeval tv;
 
-	xor((unsigned char *)buffer, length, xorKey, xorKeyLength);
+	if(length > 0 && length <= BUFSIZ){
+		xor((unsigned char *)buffer, length, xorKey, xorKeyLength);
+	}else{
+		return -1;
+	}
+
+	storeLengthToBuffer(length, buffer2);
+	memcpy(buffer2+UINT32_SIZE, buffer, length);
+	len = length + UINT32_SIZE;
 
 	while(len > 0){
 		FD_ZERO(&writefds);
@@ -287,7 +370,7 @@ int sendDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 		}
 
 		if(FD_ISSET(sock, &writefds)){
-			sen = send(sock, buffer+sendLength, len, 0);
+			sen = send(sock, buffer2+sendLength, len, 0);
 			if(sen <= 0){
 				if(errno == EINTR){
 					continue;
@@ -303,54 +386,168 @@ int sendDataXor(int sock, void *buffer, int length, long tv_sec, long tv_usec)
 		}
 	}
 
-	return sendLength;
+	return sendLength - UINT32_SIZE;
+}
+
+
+int forwarderWorker1(void *ptr)
+{
+	pPARAM2 pParam = (pPARAM2)ptr;
+	int clientSock = pParam->clientSock;
+	int targetSock = pParam->targetSock;
+	long tv_sec = pParam->tv_sec;
+	long tv_usec = pParam->tv_usec;
+
+	free(ptr);
+
+	int ret = 0;
+	int rec = 0;
+	int sen = 0;
+	char buffer[BUFSIZ+1];
+
+	while(1){
+		bzero(buffer, BUFSIZ+1);
+
+		rec = recvData(clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
+		if(rec > 0){
+			sen = sendData(targetSock, buffer, rec, tv_sec, tv_usec);
+			if(sen <= 0){
+				break;
+			}
+		}else{
+			break;
+		}
+	}
+
+	return 0;
+}
+
+
+int forwarderWorker2(void *ptr)
+{
+	pPARAM2 pParam = (pPARAM2)ptr;
+	int clientSock = pParam->clientSock;
+	int targetSock = pParam->targetSock;
+	long tv_sec = pParam->tv_sec;
+	long tv_usec = pParam->tv_usec;
+
+	free(ptr);
+
+	int ret = 0;
+	int rec = 0;
+	int sen = 0;
+	char buffer[BUFSIZ+1];
+
+	while(1){
+		bzero(buffer, BUFSIZ+1);
+
+		rec = recvData(targetSock, buffer, BUFSIZ, tv_sec, tv_usec);
+		if(rec > 0){
+			sen = sendData(clientSock, buffer, rec, tv_sec, tv_usec);
+			if(sen <= 0){
+				break;
+			}
+		}else{
+			break;
+		}
+	}
+
+	return 0;
 }
 
 
 int forwarder(int clientSock, int targetSock, long tv_sec, long tv_usec)
 {
-	int rec, sen;
-	fd_set readfds;
-	int nfds = -1;
-	struct timeval tv;
+	int ret = 0;
+	void *ret1, *ret2;
+
+	pthread_t thread1;
+	pthread_t thread2;
+	pPARAM2 pParam1 = NULL;
+	pPARAM2 pParam2 = NULL;
+
+	pParam1 = (pPARAM2)calloc(1, sizeof(PARAM2));
+	pParam2 = (pPARAM2)calloc(1, sizeof(PARAM2));
+
+	pParam1->clientSock = clientSock;
+	pParam1->targetSock = targetSock;
+	pParam1->tv_sec = tv_sec;
+	pParam1->tv_usec = tv_usec;
+
+	pParam2->clientSock = clientSock;
+	pParam2->targetSock = targetSock;
+	pParam2->tv_sec = tv_sec;
+	pParam2->tv_usec = tv_usec;
+
+	ret = pthread_create(&thread1, NULL, (void *)forwarderWorker1, pParam1);
+	ret = pthread_create(&thread2, NULL, (void *)forwarderWorker2, pParam2);
+
+	ret = pthread_join(thread1, &ret1);
+	ret = pthread_join(thread2, &ret2);
+
+	return 0;
+}
+
+
+int forwarderXorWorker1(void *ptr)
+{
+	pPARAM2 pParam = (pPARAM2)ptr;
+	int clientSock = pParam->clientSock;
+	int targetSock = pParam->targetSock;
+	long tv_sec = pParam->tv_sec;
+	long tv_usec = pParam->tv_usec;
+
+	free(ptr);
+
+	int ret = 0;
+	int rec = 0;
+	int sen = 0;
 	char buffer[BUFSIZ+1];
-	bzero(buffer, BUFSIZ+1);
-	
+
 	while(1){
-		FD_ZERO(&readfds);
-		FD_SET(clientSock, &readfds);
-		FD_SET(targetSock, &readfds);
-		nfds = (clientSock > targetSock ? clientSock : targetSock) + 1;
-		tv.tv_sec = tv_sec;
-		tv.tv_usec = tv_usec;
-		
-		if(select(nfds, &readfds, NULL, NULL, &tv) == 0){
-#ifdef _DEBUG
-			printf("[I] Forwarder timeout.\n");
-#endif
+		bzero(buffer, BUFSIZ+1);
+
+		rec = recvData(clientSock, buffer, BUFSIZ, tv_sec, tv_usec);
+		if(rec > 0){
+			sen = sendDataXor(targetSock, buffer, rec, tv_sec, tv_usec);
+			if(sen <= 0){
+				break;
+			}
+		}else{
 			break;
 		}
-		
-		if(FD_ISSET(clientSock, &readfds)){
-			if((rec = read(clientSock, buffer, BUFSIZ)) > 0){
-				sen = write(targetSock, buffer, rec);
-				if(sen <= 0){
-					break;
-				}
-			}else{
+	}
+
+	return 0;
+}
+
+
+int forwarderXorWorker2(void *ptr)
+{
+	pPARAM2 pParam = (pPARAM2)ptr;
+	int clientSock = pParam->clientSock;
+	int targetSock = pParam->targetSock;
+	long tv_sec = pParam->tv_sec;
+	long tv_usec = pParam->tv_usec;
+
+	free(ptr);
+
+	int ret = 0;
+	int rec = 0;
+	int sen = 0;
+	char buffer[BUFSIZ+1];
+
+	while(1){
+		bzero(buffer, BUFSIZ+1);
+
+		rec = recvDataXor(targetSock, buffer, BUFSIZ, tv_sec, tv_usec);
+		if(rec > 0){
+			sen = sendData(clientSock, buffer, rec, tv_sec, tv_usec);
+			if(sen <= 0){
 				break;
 			}
-		}
-		
-		if(FD_ISSET(targetSock, &readfds)){
-			if((rec = read(targetSock, buffer, BUFSIZ)) > 0){
-				sen = write(clientSock, buffer, rec);
-				if(sen <= 0){
-					break;
-				}
-			}else{
-				break;
-			}
+		}else{
+			break;
 		}
 	}
 
@@ -360,52 +557,30 @@ int forwarder(int clientSock, int targetSock, long tv_sec, long tv_usec)
 
 int forwarderXor(int clientSock, int targetSock, long tv_sec, long tv_usec)
 {
-	int rec, sen;
-	fd_set readfds;
-	int nfds = -1;
-	struct timeval tv;
-	char buffer[BUFSIZ+1];
-	bzero(buffer, BUFSIZ+1);
+	int ret = 0;
+	void *ret1, *ret2;
 
-	while(1){
-		FD_ZERO(&readfds);
-		FD_SET(clientSock, &readfds);
-		FD_SET(targetSock, &readfds);
-		nfds = (clientSock > targetSock ? clientSock : targetSock) + 1;
-		tv.tv_sec = tv_sec;
-		tv.tv_usec = tv_usec;
+	pthread_t thread1;
+	pthread_t thread2;
 
-		if(select(nfds, &readfds, NULL, NULL, &tv) == 0){
-#ifdef _DEBUG
-			printf("[I] Forwarder timeout.\n");
-#endif
-			break;
-		}
+	pPARAM2 pParam1 = (pPARAM2)calloc(1, sizeof(PARAM2));
+	pPARAM2 pParam2 = (pPARAM2)calloc(1, sizeof(PARAM2));
 
-		if(FD_ISSET(clientSock, &readfds)){
-			if((rec = read(clientSock, buffer, BUFSIZ)) > 0){
-				xor((unsigned char *)buffer, rec, xorKey, xorKeyLength);
-				sen = write(targetSock, buffer, rec);
-				if(sen <= 0){
-					break;
-				}
-			}else{
-				break;
-			}
-		}
+	pParam1->clientSock = clientSock;
+	pParam1->targetSock = targetSock;
+	pParam1->tv_sec = tv_sec;
+	pParam1->tv_usec = tv_usec;
 
-		if(FD_ISSET(targetSock, &readfds)){
-			if((rec = read(targetSock, buffer, BUFSIZ)) > 0){
-				xor((unsigned char *)buffer, rec, xorKey, xorKeyLength);
-				sen = write(clientSock, buffer, rec);
-				if(sen <= 0){
-					break;
-				}
-			}else{
-				break;
-			}
-		}
-	}
+	pParam2->clientSock = clientSock;
+	pParam2->targetSock = targetSock;
+	pParam2->tv_sec = tv_sec;
+	pParam2->tv_usec = tv_usec;
+
+	ret = pthread_create(&thread1, NULL, (void *)forwarderXorWorker1, pParam1);
+	ret = pthread_create(&thread2, NULL, (void *)forwarderXorWorker2, pParam2);
+
+	ret = pthread_join(thread1, &ret1);
+	ret = pthread_join(thread2, &ret2);
 
 	return 0;
 }
